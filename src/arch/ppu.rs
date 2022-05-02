@@ -49,6 +49,22 @@ impl PPU {
     self.show_chr(canvas, sdl2::rect::Rect::new(0, 100, 256 * 4, 128 * 4));
   }
 
+  fn get_chr(&self, index: usize, chr : &mut [u8; 8 * 8]) {
+    let addr = index * 16;
+    for i in 0..8 {
+      let value1 = self.memory[addr + i];
+      let value2 = self.memory[addr + 8 + i];
+      chr[7 + i * 8] = (value1 & 0b0000_0001) + (value2 & 0b0000_0001);
+      chr[6 + i * 8] = ((value1 & 0b0000_0010) >> 1) + ((value2 & 0b0000_0010) >> 1);
+      chr[5 + i * 8] = ((value1 & 0b0000_0100) >> 2) + ((value2 & 0b0000_0100) >> 2);
+      chr[4 + i * 8] = ((value1 & 0b0000_1000) >> 3) + ((value2 & 0b0000_1000) >> 3);
+      chr[3 + i * 8] = ((value1 & 0b0001_0000) >> 4) + ((value2 & 0b0001_0000) >> 4);
+      chr[2 + i * 8] = ((value1 & 0b0010_0000) >> 5) + ((value2 & 0b0010_0000) >> 5);
+      chr[1 + i * 8] = ((value1 & 0b0100_0000) >> 6) + ((value2 & 0b0100_0000) >> 6);
+      chr[0 + i * 8] = ((value1 & 0b1000_0000) >> 7) + ((value2 & 0b1000_0000) >> 7);
+    }
+  }
+
   //==============================DEBUG==================================
   pub fn show_palette(&mut self, canvas: &mut Canvas<sdl2::video::Window>
       , rect: sdl2::rect::Rect) {
@@ -63,22 +79,6 @@ impl PPU {
       canvas.fill_rect(sdl2::rect::Rect::new(rect.x + x, rect.y + y,
         (rect.w / 16) as u32, (rect.h / 4) as u32)
       ).unwrap();
-    }
-  }
-
-  pub fn get_chr(&self, index: usize, chr : &mut [u8; 8 * 8]) {
-    let addr = index * 16;
-    for i in 0..8 {
-      let value1 = self.memory[addr + i];
-      let value2 = self.memory[addr + 8 + i];
-      chr[7 + i * 8] = (value1 & 0b0000_0001) + (value2 & 0b0000_0001);
-      chr[6 + i * 8] = ((value1 & 0b0000_0010) >> 1) + ((value2 & 0b0000_0010) >> 1);
-      chr[5 + i * 8] = ((value1 & 0b0000_0100) >> 2) + ((value2 & 0b0000_0100) >> 2);
-      chr[4 + i * 8] = ((value1 & 0b0000_1000) >> 3) + ((value2 & 0b0000_1000) >> 3);
-      chr[3 + i * 8] = ((value1 & 0b0001_0000) >> 4) + ((value2 & 0b0001_0000) >> 4);
-      chr[2 + i * 8] = ((value1 & 0b0010_0000) >> 5) + ((value2 & 0b0010_0000) >> 5);
-      chr[1 + i * 8] = ((value1 & 0b0100_0000) >> 6) + ((value2 & 0b0100_0000) >> 6);
-      chr[0 + i * 8] = ((value1 & 0b1000_0000) >> 7) + ((value2 & 0b1000_0000) >> 7);
     }
   }
 
