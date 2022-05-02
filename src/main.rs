@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   let cartridge = Cartridge::create_from_rom(&nes_rom);
   let mut nes = Nes::load_rom(&cartridge);
   nes.reset();
+  nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");
   //nes.show_mem();
   nes.run();

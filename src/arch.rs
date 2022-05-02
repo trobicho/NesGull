@@ -1,7 +1,9 @@
 mod cpu;
+mod ppu;
 
 use std::error::Error;
 use crate::arch::cpu::CPU;
+use crate::arch::ppu::PPU;
 
 struct RomInfo {
   trainer : bool,
@@ -53,6 +55,7 @@ impl<'rom> Cartridge<'rom> {
 
 pub struct Nes<'rom> {
   cpu : CPU,
+  ppu : PPU,
   cartridge : &'rom Cartridge<'rom>,
 }
 
@@ -60,20 +63,33 @@ impl<'rom> Nes<'rom> {
   pub fn load_rom(cartridge: &'rom Cartridge) -> Self {
     Self {
       cpu: CPU::new(),
+      ppu: PPU::new(),
       cartridge,
     }
   }
+
+  pub fn load_palette(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
+    self.ppu.load_palette(filename)
+  }
+
   pub fn reset(&mut self) {
     self.cpu.load(self.cartridge.prg_rom, self.cartridge.prg_size);
     self.cpu.reset();
+    match self.cartridge.chr_rom {
+      Some(chr_rom) => {self.ppu.load(chr_rom, self.cartridge.chr_size)},
+      None => {}
+    }
+    self.ppu.reset();
   }
 
   pub fn show_mem(&self) {
     self.cpu.show_mem();
+    println!("==============================");
+    self.ppu.show_mem();
   }
 
   pub fn run(&mut self) {
-    for _ in 1..10 {
+    for _ in 0..10 {
       self.cpu.debug_read_instr();
     }
   }

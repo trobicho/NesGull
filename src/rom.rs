@@ -21,7 +21,6 @@ pub fn header_info(header : &[u8]) {
 }
 
 pub fn nes_rom_load(filename : &str) -> Result<Vec<u8>, Box<dyn Error>> {
-
   let file = fs::read(filename)?;
   if file[0] == 'N' as u8 && file[1] == 'E' as u8
       && file[2] == 'S' as u8 && file[3] == 0x1A as u8 {

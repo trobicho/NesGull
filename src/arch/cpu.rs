@@ -217,5 +217,6 @@ impl CPU {
       print!("{} ", addr);
       i += 1;
     }
+    println!("");
   }
 }
