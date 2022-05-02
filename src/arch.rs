@@ -5,6 +5,10 @@ use std::error::Error;
 use crate::arch::cpu::CPU;
 use crate::arch::ppu::PPU;
 
+use sdl2::render::Canvas;
+use sdl2::video::{Window};
+
+
 struct RomInfo {
   trainer : bool,
   size_prg : usize,
@@ -60,7 +64,7 @@ pub struct Nes<'rom> {
 }
 
 impl<'rom> Nes<'rom> {
-  pub fn load_rom(cartridge: &'rom Cartridge) -> Self {
+  pub fn new(cartridge: &'rom Cartridge) -> Self {
     Self {
       cpu: CPU::new(),
       ppu: PPU::new(),
@@ -80,6 +84,10 @@ impl<'rom> Nes<'rom> {
       None => {}
     }
     self.ppu.reset();
+  }
+
+  pub fn render(&mut self, canvas: &mut Canvas<sdl2::video::Window>) {
+    self.ppu.render(canvas);
   }
 
   pub fn show_mem(&self) {

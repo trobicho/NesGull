@@ -26,8 +26,8 @@ fn find_sdl_gl_driver() -> Option<u32> {
 fn main() -> Result<(), Box<dyn Error>>{
   let sdl_context = sdl2::init()?;
   let video_subsystem = sdl_context.video()?;
-  let window = video_subsystem.window("Window", 800, 600)
-    .opengl() // this line DOES NOT enable opengl, but allows you to create/get an OpenGL context from your window.
+  let window = video_subsystem.window("NES emulator", 1200, 800)
+    .opengl()
     .build()
     .map_err(|e| e.to_string())?;
   let mut canvas = window.into_canvas()
@@ -35,15 +35,12 @@ fn main() -> Result<(), Box<dyn Error>>{
     .build()
     .map_err(|e| e.to_string())?;
 
-  let texture_creator = canvas.texture_creator();
-  canvas.set_draw_color(sdl2::pixels::Color::RGBA(0, 0, 0, 255));
-  let timer = sdl_context.timer()?;
   let mut event_pump = sdl_context.event_pump()?;
 
   println!("Hello, world!");
-  let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
+  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
   let cartridge = Cartridge::create_from_rom(&nes_rom);
-  let mut nes = Nes::load_rom(&cartridge);
+  let mut nes = Nes::new(&cartridge);
   nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");
@@ -65,6 +62,9 @@ fn main() -> Result<(), Box<dyn Error>>{
         _ => {}
       }
     }
+    canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
+    canvas.clear();
+    nes.render(&mut canvas);
     canvas.present();
     std::thread::sleep(Duration::from_millis(100));
   }
