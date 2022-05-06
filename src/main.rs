@@ -1,17 +1,15 @@
 #![allow(dead_code)]
 extern crate sdl2;
 
-mod arch;
+mod nes;
 mod rom;
 
 use std::error::Error;
-use arch::Nes;
-use arch::Cartridge;
+use nes::Nes;
+use nes::cartridge::Cartridge;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::rect::Point;
-use sdl2::rect::Rect;
 use std::time::Duration;
 
 fn find_sdl_gl_driver() -> Option<u32> {
@@ -38,9 +36,9 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut event_pump = sdl_context.event_pump()?;
 
   println!("Hello, world!");
-  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
-  let cartridge = Cartridge::create_from_rom(&nes_rom);
-  let mut nes = Nes::new(&cartridge);
+  let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
+  //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom));
   nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");

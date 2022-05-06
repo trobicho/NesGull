@@ -113,13 +113,16 @@ pub struct CPU {
   cycles_since_startup: u32,
   cycles_instr: u32,
   operand: [u8; 2],
+  addr_abs: u16,
+  addr_rel: u16,
 }
 
 fn operand_lenght(instr: &opcode::InstructionInfo) -> u16 {
   match instr.mode {
     OpMode::IMP => 0,
+    OpMode::ACC => 0,
     OpMode::IMM => 1,
-    OpMode::ZP => 1,
+    OpMode::ZP0 => 1,
     OpMode::ZPX => 1,
     OpMode::ZPY => 1,
     OpMode::IZX => 1,
@@ -140,6 +143,8 @@ impl CPU {
       cycles_since_startup: 0,
       cycles_instr: 0,
       operand: [0, 0],
+      addr_abs: 0,
+      addr_rel: 0,
     }
   }
 
@@ -218,5 +223,17 @@ impl CPU {
       i += 1;
     }
     println!("");
+  }
+}
+
+#[allow(non_snake_case)]
+impl CPU {
+  fn operand_addressing_mode(&self, instr: opcode::InstructionInfo) -> u8 {
+    8 as u8
+  }
+
+  fn ADC(&mut self, instr: opcode::InstructionInfo) {
+    //match instr.mode {
+    //}
   }
 }

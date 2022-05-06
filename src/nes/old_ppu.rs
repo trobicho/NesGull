@@ -27,8 +27,10 @@ impl PPU {
   pub fn reset(&mut self) {
   }
 
-  pub fn load(&mut self, chr_ram : &[u8], chr_size : usize) {
-    self.memory[0x0..chr_size].clone_from_slice(&chr_ram);
+  pub fn load(&mut self, chr_ram : &Vec<u8>, chr_size : usize) {
+    for i in 0..chr_size {
+      self.memory[i] = chr_ram[i];
+    }
   }
 
   pub fn load_palette(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
@@ -64,8 +66,9 @@ impl PPU {
       chr[0 + i * 8] = ((value1 & 0b1000_0000) >> 7) + ((value2 & 0b1000_0000) >> 7);
     }
   }
+}
 
-  //==============================DEBUG==================================
+impl PPU { //Debug
   pub fn show_palette(&mut self, canvas: &mut Canvas<sdl2::video::Window>
       , rect: sdl2::rect::Rect) {
     for i in 0..64 {
@@ -141,5 +144,4 @@ impl PPU {
     }
     println!("");
   }
-  //==============================DEBUG==================================
 }
