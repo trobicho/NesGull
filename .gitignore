@@ -1,5 +1,6 @@
 /target
 /roms
 /palettes
+/nes-test-roms
 *.swp
 *.swo

@@ -1,4 +1,5 @@
 mod opcode;
+use std::fmt;
 
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
@@ -6,6 +7,7 @@ use crate::nes::{
 };
 
 
+#[derive(Debug)]
 struct StatusReg {
   //7654 3210
   //NVss DIZC
@@ -85,6 +87,7 @@ impl StatusReg {
 }
 
 #[allow(non_snake_case)]
+#[derive(Debug)]
 struct Reg {
   A: u8,
   X: u8,
@@ -115,6 +118,18 @@ impl Reg {
   }
 }
 
+impl fmt::Display for StatusReg{
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:#8b}", self.value)
+  }
+}
+
+impl fmt::Display for Reg{
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+
 fn operand_lenght(instr: &InstructionInfo) -> u16 {
   match instr.mode {
     OpMode::IMP => 0,
@@ -129,7 +144,7 @@ fn operand_lenght(instr: &InstructionInfo) -> u16 {
     OpMode::ABX => 2,
     OpMode::ABY => 2,
     OpMode::IND => 2,
-    OpMode::REL => 2,
+    OpMode::REL => 1,
   }
 }
 
@@ -173,7 +188,7 @@ impl CPU {
 
   pub fn debug_exec_instr(&mut self, bus: &mut Bus) {
     self.read_instr(bus);
-    print!("{} ", self.instr.instr);
+    print!("{}[{:#02x}] ", self.instr.instr, self.instr.opcode);
     if self.op_len >= 1 {
       print!(": {:#02x}", self.operand[0]);
       if self.op_len == 2 {
@@ -182,7 +197,7 @@ impl CPU {
     }
     self.exec_instr(bus);
     if self.as_jump {
-      print!(" AS BRANCH");
+      print!(" AS BRANCH to {:#04x}", self.reg.PC);
     }
     println!("");
   }
@@ -265,10 +280,11 @@ impl CPU {
       Instruction::BCS => {self.BCS(bus)},
       Instruction::BNE => {self.BNE(bus)},
       Instruction::BEQ => {self.BEQ(bus)},
-      Instruction::BCS => {self.BCS(bus)},
       Instruction::JMP => {self.JMP(bus)},
       Instruction::JSR => {self.JSR(bus)},
       Instruction::RTS => {self.RTS(bus)},
+      //Interrupt commands:
+      Instruction::RTI => {self.RTI(bus)},
       //Flags commands:
       Instruction::CLC => {self.CLC(bus)},
       Instruction::SEC => {self.SEC(bus)},
@@ -668,15 +684,15 @@ impl CPU {
   }
 
   fn PLA(&mut self, bus: &mut Bus) {
+    self.reg.S = self.reg.S.wrapping_sub(1);
     let addr = STACK_ADDR + self.reg.S as u16;
     self.reg.A = bus.read(addr.into());
-    self.reg.S = self.reg.S.wrapping_sub(1);
   }
 
   fn PLP(&mut self, bus: &mut Bus) {
+    self.reg.S = self.reg.S.wrapping_sub(1);
     let addr = STACK_ADDR + self.reg.S as u16;
     self.reg.P.value = bus.read(addr.into());
-    self.reg.S = self.reg.S.wrapping_sub(1);
   }
 
   //Jump / Branch commands:
@@ -731,6 +747,7 @@ impl CPU {
     let msb: u8 = (self.reg.PC.wrapping_shl(8).wrapping_shr(8)).try_into().unwrap();
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
     self.reg.S = self.reg.S.wrapping_add(1);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
     bus.write(stack_addr.into(), msb);
     self.reg.S = self.reg.S.wrapping_add(1);
     self.reg.PC = self.addr_abs;
@@ -738,12 +755,37 @@ impl CPU {
   }
 
   fn RTS(&mut self, bus: &mut Bus) {
+    self.reg.S = self.reg.S.wrapping_sub(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     let mut lsb = bus.read(stack_addr.into());
     self.reg.S = self.reg.S.wrapping_sub(1);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
     let msb = bus.read(stack_addr.into());
-    self.reg.S = self.reg.S.wrapping_sub(1);
+    print!("RTS: {} {} ", msb, lsb);
     lsb = lsb.wrapping_sub(1);
+    self.reg.PC = ((msb as u16) << 8) + lsb as u16;
+    self.as_jump = true;
+  }
+
+  //Interrupt commands:
+  fn BRK(&mut self, _bus: &mut Bus) { // TODO
+  }
+
+  fn RTI(&mut self, bus: &mut Bus) {
+    print!(" SP:{} ", self.reg);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    self.reg.P.value = bus.read(stack_addr.into());
+
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    let lsb = bus.read(stack_addr.into());
+
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    let msb = bus.read(stack_addr.into());
+
+    print!("RTI: {} {} ", msb, lsb);
     self.reg.PC = ((msb as u16) << 8) + lsb as u16;
     self.as_jump = true;
   }
@@ -775,12 +817,5 @@ impl CPU {
 
   fn CLV(&mut self, _bus: &mut Bus) {
     self.reg.P.set_V(false);
-  }
-
-  //Interrupt commands:
-  fn BRK(&mut self, _bus: &mut Bus) { // TODO
-  }
-
-  fn RTI(&mut self, _bus: &mut Bus) { // TODO
   }
 }

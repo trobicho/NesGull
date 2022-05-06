@@ -30,7 +30,7 @@ impl Bus {
 impl MemRead for Bus{
   fn read(&mut self, addr: usize) -> u8 {
     match addr {
-      0x0000..=0x0FFF => self.wram.read(addr),
+      0x0000..=0x0800 => self.wram.read(addr),
       0x4020..=0xFFFF => self.mapper.read(addr),
       _ => 0,
     }
@@ -40,7 +40,7 @@ impl MemRead for Bus{
 impl MemWrite for Bus{
   fn write(&mut self, addr: usize, value: u8) {
     match addr {
-      0x0000..=0x1FFF => self.wram.write(addr, value),
+      0x0000..=0x0800 => self.wram.write(addr, value),
       0x4020..=0xFFFF => self.mapper.write(addr, value),
       _ => (),
     }
