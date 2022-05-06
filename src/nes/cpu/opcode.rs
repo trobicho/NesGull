@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
   //Logical and arithmetic commands:
   ORA,
@@ -83,7 +83,7 @@ pub enum Instruction {
   KIL,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum OpMode {
   ACC,
   IMP,

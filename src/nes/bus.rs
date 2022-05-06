@@ -41,7 +41,7 @@ impl MemWrite for Bus{
   fn write(&mut self, addr: usize, value: u8) {
     match addr {
       0x0000..=0x1FFF => self.wram.write(addr, value),
-      0x4020..=0xFFFF => self.wram.write(addr, value),
+      0x4020..=0xFFFF => self.mapper.write(addr, value),
       _ => (),
     }
   }

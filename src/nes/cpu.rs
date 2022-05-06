@@ -10,10 +10,13 @@ struct StatusReg {
   //7654 3210
   //NVss DIZC
 
-  value: u8,
+  pub value: u8,
 }
 
 use opcode::*;
+
+const STACK_ADDR: u16 = 0x0100;
+const INDIRECT_BUG_JMP: bool = true;
 
 #[allow(non_snake_case)]
 impl StatusReg {
@@ -134,6 +137,7 @@ pub struct CPU {
   reg: Reg,
   cycles_since_startup: u32,
   cycles_instr: u32,
+  cycles_branch : u32,
   operand: [u8; 2],
   addr_abs: u16,
   addr_rel: i8,
@@ -147,6 +151,7 @@ impl CPU {
       reg: Reg::new(),
       cycles_since_startup: 0,
       cycles_instr: 0,
+      cycles_branch: 0,
       operand: [0, 0],
       addr_abs: 0,
       addr_rel: 0,
@@ -194,7 +199,7 @@ impl CPU {
 impl CPU {
   fn handle_adressing_mode(&mut self, bus: &mut Bus) {
     match self.instr.mode {
-      OpMode::ACC => {},
+      OpMode::ACC => {self.operand[0] = self.reg.A},
       OpMode::IMP => {},
       OpMode::IMM => {},
       OpMode::ZP0 => {
@@ -238,7 +243,10 @@ impl CPU {
       OpMode::IND => {
         let ind: usize = ((self.operand[1] as usize) << 8) + self.operand[0] as usize;
         let addr1 = bus.read(ind);
-        let addr2 = bus.read(ind + 1);
+        let mut addr2 = bus.read(ind + 1);
+        if INDIRECT_BUG_JMP && self.operand[0] == 0xFF {
+          addr2 = bus.read((self.operand[1] as usize) << 8);
+        }
         self.addr_abs = ((addr1 as u16) << 8) + addr2 as u16;
       },
       OpMode::REL => {
@@ -252,14 +260,15 @@ impl CPU {
     }
   }
 
-  fn ADC(&mut self, bus: &mut Bus) {
+  //Logical and arithmetic commands:
+  fn ADC(&mut self, _bus: &mut Bus) {
     if self.reg.P.get_D() == false {
       let carry: u8 = if self.reg.P.get_C() {1} else {0};
       let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
       let n_o: bool = if self.operand[0] & 0b1000_0000 != 0 {true} else {false};
       let (r, c) = self.reg.A.overflowing_add(self.operand[0]);
       let (r2, c2) = r.overflowing_add(carry);
-      self.reg.A = r;
+      self.reg.A = r2;
 
       let n = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
       self.reg.P.set_C(c || c2);
@@ -270,6 +279,13 @@ impl CPU {
   }
 
   fn SBC(&mut self, _bus: &mut Bus) {
+  }
+
+  fn BIT(&mut self, _bus: &mut Bus) {
+    let r = self.reg.A & self.operand[0];
+    self.reg.P.set_Z(if r == 0 {true} else {false});
+    self.reg.P.set_V(if self.operand[0] & 0b0100_0000 != 0 {true} else {false});
+    self.reg.P.set_N(if self.operand[0] & 0b1000_0000 != 0 {true} else {false});
   }
 
   fn AND(&mut self, _bus: &mut Bus) {
@@ -339,56 +355,340 @@ impl CPU {
   }
 
   fn DEC(&mut self, bus: &mut Bus) {
-    let mut result: u8 = self.operand[0];
-    if result == 0 {
-      result = 0xFF;
+    let mut r: u8 = self.operand[0];
+    if r == 0 {
+      r = 0xFF;
       self.reg.P.set_N(true);
       self.reg.P.set_Z(false);
-    } else if result == 1 {
-      result = 0;
+    } else if r == 1 {
+      r = 0;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(true);
     } else {
-      result -= 1;
+      r -= 1;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(false);
     }
-    bus.write(self.addr_abs.into(), result)
+    bus.write(self.addr_abs.into(), r)
   }
 
   fn DEX(&mut self, _bus: &mut Bus) {
-    let mut result: u8 = self.reg.X;
-    if result == 0 {
-      result = 0xFF;
+    let mut r: u8 = self.reg.X;
+    if r == 0 {
+      r = 0xFF;
       self.reg.P.set_N(true);
       self.reg.P.set_Z(false);
-    } else if result == 1 {
-      result = 0;
+    } else if r == 1 {
+      r = 0;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(true);
     } else {
-      result -= 1;
+      r -= 1;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(false);
     }
-    self.reg.X = result;
+    self.reg.X = r;
   }
 
   fn DEY(&mut self, _bus: &mut Bus) {
-    let mut result: u8 = self.reg.Y;
-    if result == 0 {
-      result = 0xFF;
+    let mut r: u8 = self.reg.Y;
+    if r == 0 {
+      r = 0xFF;
       self.reg.P.set_N(true);
       self.reg.P.set_Z(false);
-    } else if result == 1 {
-      result = 0;
+    } else if r == 1 {
+      r = 0;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(true);
     } else {
-      result -= 1;
+      r -= 1;
       self.reg.P.set_N(false);
       self.reg.P.set_Z(false);
     }
-    self.reg.Y = result;
+    self.reg.Y = r;
+  }
+
+  fn INC(&mut self, bus: &mut Bus) {
+    let mut r: u8 = self.operand[0];
+    if r == 0xFE {
+      r = 0;
+      self.reg.P.set_Z(true);
+    } else {
+      r += 1;
+      self.reg.P.set_Z(false);
+    }
+    bus.write(self.addr_abs.into(), r);
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn INX(&mut self, _bus: &mut Bus) {
+    let mut r : u8 = self.reg.X;
+    if r == 0xFE {
+      r = 0;
+      self.reg.P.set_Z(true);
+    } else {
+      r += 1;
+      self.reg.P.set_Z(false);
+    }
+    self.reg.X = r;
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn INY(&mut self, _bus: &mut Bus) {
+    let mut r: u8 = self.reg.Y;
+    if r == 0xFE {
+      r = 0;
+      self.reg.P.set_Z(true);
+    } else {
+      r += 1;
+      self.reg.P.set_Z(false);
+    }
+    self.reg.Y = r;
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn ASL(&mut self, bus: &mut Bus) {
+    let mut r = self.operand[0];
+    self.reg.P.set_C(if r & 0b1000_0000 != 0 {true} else {false});
+    r = r.wrapping_shl(1);
+    match self.instr.mode {
+      OpMode::ACC => {self.reg.A = r},
+      _ => {bus.write(self.addr_abs.into(), r)},
+    }
+    self.reg.P.set_Z(if r == 0 {true} else {false});
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn LSR(&mut self, bus: &mut Bus) {
+    let mut r = self.operand[0];
+    self.reg.P.set_C(if r & 0b0000_0001 != 0 {true} else {false});
+    r = r.wrapping_shr(1);
+    match self.instr.mode {
+      OpMode::ACC => {self.reg.A = r},
+      _ => {bus.write(self.addr_abs.into(), r)},
+    }
+    self.reg.P.set_Z(if r == 0 {true} else {false});
+    self.reg.P.set_N(false);
+  }
+
+  fn ROL(&mut self, bus: &mut Bus) {
+    let mut r = self.operand[0];
+    let carry = if self.reg.P.get_C() {true} else {false};
+    self.reg.P.set_C(if r & 0b1000_0000 != 0 {true} else {false});
+    r = r.wrapping_shl(1);
+    if carry {
+      r &= 0b0000_0001;
+    }
+    match self.instr.mode {
+      OpMode::ACC => {self.reg.A = r},
+      _ => {bus.write(self.addr_abs.into(), r)},
+    }
+    self.reg.P.set_Z(if r == 0 {true} else {false});
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn ROR(&mut self, bus: &mut Bus) {
+    let mut r = self.operand[0];
+    let carry = if self.reg.P.get_C() {true} else {false};
+    self.reg.P.set_C(if r & 0b0000_0001 != 0 {true} else {false});
+    r = r.wrapping_shr(1);
+    if carry {
+      r &= 0b1000_0000;
+    }
+    match self.instr.mode {
+      OpMode::ACC => {self.reg.A = r},
+      _ => {bus.write(self.addr_abs.into(), r)},
+    }
+    self.reg.P.set_Z(if r == 0 {true} else {false});
+    self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  //Move commands:
+  fn LDA(&mut self, _bus: &mut Bus) {
+    self.reg.A = self.operand[0];
+    self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn LDX(&mut self, _bus: &mut Bus) {
+    self.reg.X = self.operand[0];
+    self.reg.P.set_Z(if self.reg.X == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.X & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn LDY (&mut self, _bus: &mut Bus) {
+    self.reg.Y = self.operand[0];
+    self.reg.P.set_Z(if self.reg.Y == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.Y & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn STA(&mut self, bus: &mut Bus) {
+    bus.write(self.addr_abs.into(), self.reg.A);
+  }
+
+  fn STX(&mut self, bus: &mut Bus) {
+    bus.write(self.addr_abs.into(), self.reg.X);
+  }
+
+  fn STY(&mut self, bus: &mut Bus) {
+    bus.write(self.addr_abs.into(), self.reg.Y);
+  }
+
+  fn TAX(&mut self, _bus: &mut Bus) {
+    self.reg.X = self.reg.A;
+    self.reg.P.set_Z(if self.reg.X == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.X & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn TXA(&mut self, _bus: &mut Bus) {
+    self.reg.A = self.reg.X;
+    self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn TAY(&mut self, _bus: &mut Bus) {
+    self.reg.Y = self.reg.A;
+    self.reg.P.set_Z(if self.reg.Y == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.Y & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn TYA(&mut self, _bus: &mut Bus) {
+    self.reg.A = self.reg.Y;
+    self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn TSX(&mut self, _bus: &mut Bus) {
+    self.reg.X = self.reg.S;
+    self.reg.P.set_Z(if self.reg.X == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.X & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn TXS(&mut self, _bus: &mut Bus) {
+    self.reg.S = self.reg.X;
+    self.reg.P.set_Z(if self.reg.S == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.S & 0b1000_0000 != 0 {true} else {false});
+  }
+
+  fn PHA(&mut self, bus: &mut Bus) {
+    let addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(addr.into(), self.reg.A);
+    self.reg.S = self.reg.S.wrapping_add(1);
+  }
+
+  fn PHP(&mut self, bus: &mut Bus) {
+    let addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(addr.into(), self.reg.P.value);
+    self.reg.S = self.reg.S.wrapping_add(1);
+  }
+
+  fn PLA(&mut self, bus: &mut Bus) {
+    let addr = STACK_ADDR + self.reg.S as u16;
+    self.reg.A = bus.read(addr.into());
+    self.reg.S = self.reg.S.wrapping_sub(1);
+  }
+
+  fn PLP(&mut self, bus: &mut Bus) {
+    let addr = STACK_ADDR + self.reg.S as u16;
+    self.reg.P.value = bus.read(addr.into());
+    self.reg.S = self.reg.S.wrapping_sub(1);
+  }
+
+  //Jump / Branch commands:
+  fn branch(&mut self, _bus: &mut Bus) {
+    let pc = self.addr_abs;
+    self.cycles_branch = 
+      if (pc.wrapping_shr(8)) == (self.reg.PC.wrapping_shr(8)) {3}
+      else {1};
+  }
+
+  fn BCS(&mut self, bus: &mut Bus) {
+    if self.reg.P.get_C() {self.branch(bus);}
+  }
+
+  fn BCC(&mut self, bus: &mut Bus) {
+    if !self.reg.P.get_C() {self.branch(bus);}
+  }
+
+  fn BEQ(&mut self, bus: &mut Bus) {
+    if self.reg.P.get_Z() {self.branch(bus);}
+  }
+
+  fn BNE(&mut self, bus: &mut Bus) {
+    if !self.reg.P.get_Z() {self.branch(bus);}
+  }
+
+  fn BMI(&mut self, bus: &mut Bus) {
+    if self.reg.P.get_N() {self.branch(bus);}
+  }
+
+  fn BPL(&mut self, bus: &mut Bus) {
+    if !self.reg.P.get_N() {self.branch(bus);}
+  }
+
+  fn BVS(&mut self, bus: &mut Bus) {
+    if self.reg.P.get_V() {self.branch(bus);}
+  }
+
+  fn BVC(&mut self, bus: &mut Bus) {
+    if !self.reg.P.get_V() {self.branch(bus);}
+  }
+
+  fn JMP(&mut self, _bus: &mut Bus) {
+    self.reg.PC = self.addr_abs;
+  }
+
+  fn JSR(&mut self, bus: &mut Bus) {
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    let lsb: u8 = (self.reg.PC.wrapping_shr(8)).try_into().unwrap();
+    let msb: u8 = (self.reg.PC.wrapping_shl(8)).try_into().unwrap();
+    bus.write(stack_addr.into(), lsb.wrapping_sub(1));
+    self.reg.S = self.reg.S.wrapping_add(1);
+    bus.write(stack_addr.into(), msb);
+    self.reg.S = self.reg.S.wrapping_add(1);
+    self.reg.PC = self.addr_abs;
+  }
+
+  fn RTS(&mut self, bus: &mut Bus) {
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    let mut lsb = bus.read(stack_addr.into());
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    let msb = bus.read(stack_addr.into());
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    lsb = lsb.wrapping_sub(1);
+    self.reg.PC = ((msb as u16) << 8) + lsb as u16;
+  }
+
+  //Flags commands:
+  fn CLC(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_C(false);
+  }
+
+  fn SEC(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_C(true);
+  }
+
+  fn CLD(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_D(false);
+  }
+
+  fn SED(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_D(true);
+  }
+
+  fn CLI(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_I(false);
+  }
+
+  fn SEI(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_I(true);
+  }
+
+  fn CLV(&mut self, _bus: &mut Bus) {
+    self.reg.P.set_V(false);
+  }
+
+  //Interrupt commands:
+  fn BRK(&mut self, _bus: &mut Bus) { // TODO
   }
 }
