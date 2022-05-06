@@ -159,6 +159,7 @@ pub struct CPU {
   instr: InstructionInfo,
   op_len: u16,
   as_jump: bool,
+  nb_instr_exec: u32,
 }
 
 impl CPU {
@@ -174,6 +175,7 @@ impl CPU {
       instr: InstructionInfo::new(),
       op_len: 0,
       as_jump: false,
+      nb_instr_exec: 0,
     }
   }
 
@@ -186,9 +188,19 @@ impl CPU {
     println!("PC : {:#04x}", self.reg.PC);
   }
 
+  pub fn reset_debug(&mut self, bus: &mut Bus) {
+    self.reg.reset();
+    self.cycles_since_startup = 0;
+    self.cycles_instr = 0;
+
+    self.reg.PC = 0xC000;
+    println!("PC : {:#04x}", self.reg.PC);
+  }
+
   pub fn debug_exec_instr(&mut self, bus: &mut Bus) {
+    self.nb_instr_exec += 1;
     self.read_instr(bus);
-    print!("{}[{:#02x}] ", self.instr.instr, self.instr.opcode);
+    print!("{} {}[{:#02x}] ", self.nb_instr_exec, self.instr.instr, self.instr.opcode);
     if self.op_len >= 1 {
       print!(": {:#02x}", self.operand[0]);
       if self.op_len == 2 {
@@ -241,6 +253,7 @@ impl CPU {
       Instruction::BIT => {self.BIT(bus)},
       Instruction::EOR => {self.EOR(bus)},
       Instruction::ADC => {self.ADC(bus)},
+      Instruction::SBC => {self.SBC(bus)},
       Instruction::CMP => {self.CMP(bus)},
       Instruction::CPX => {self.CPX(bus)},
       Instruction::CPY => {self.CPY(bus)},
@@ -292,7 +305,7 @@ impl CPU {
       Instruction::SED => {self.SED(bus)},
       Instruction::CLI => {self.CLI(bus)},
       Instruction::SEI => {self.SEI(bus)},
-      Instruction::CLV => {self.SEI(bus)},
+      Instruction::CLV => {self.CLV(bus)},
       Instruction::NOP => (),
       _ => {println!("not implemented yet: {}", self.instr.instr)}
     }
@@ -380,6 +393,20 @@ impl CPU {
   }
 
   fn SBC(&mut self, _bus: &mut Bus) {
+    if self.reg.P.get_D() == false {
+      let carry: u8 = if self.reg.P.get_C() {1} else {0};
+      let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
+      let n_o: bool = if self.operand[0] & 0b1000_0000 != 0 {true} else {false};
+      let (r, c) = self.reg.A.overflowing_sub(self.operand[0]);
+      let (r2, c2) = r.overflowing_sub(!carry);
+      self.reg.A = r2;
+
+      let n = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
+      self.reg.P.set_C(c || c2);
+      self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
+      self.reg.P.set_V(if n && !n_a && !n_o {true} else {false});
+      self.reg.P.set_N(n);
+    }
   }
 
   fn BIT(&mut self, _bus: &mut Bus) {
@@ -687,6 +714,8 @@ impl CPU {
     self.reg.S = self.reg.S.wrapping_sub(1);
     let addr = STACK_ADDR + self.reg.S as u16;
     self.reg.A = bus.read(addr.into());
+    self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
+    self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
   }
 
   fn PLP(&mut self, bus: &mut Bus) {
@@ -701,6 +730,7 @@ impl CPU {
     self.cycles_branch = 
       if (pc.wrapping_shr(8)) == (self.reg.PC.wrapping_shr(8)) {3}
       else {1};
+    self.reg.PC = pc;
     self.as_jump = true;
   }
 
@@ -717,6 +747,7 @@ impl CPU {
   }
 
   fn BNE(&mut self, bus: &mut Bus) {
+    print!(" {} ", self.reg.P.get_Z());
     if !self.reg.P.get_Z() {self.branch(bus);}
   }
 
@@ -742,9 +773,12 @@ impl CPU {
   }
 
   fn JSR(&mut self, bus: &mut Bus) {
+    print!(" PC: {:#04x}", self.reg.PC);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
-    let lsb: u8 = (self.reg.PC.wrapping_shr(8)).try_into().unwrap();
-    let msb: u8 = (self.reg.PC.wrapping_shl(8).wrapping_shr(8)).try_into().unwrap();
+    let msb: u8 = (self.reg.PC.wrapping_shr(8)).try_into().unwrap();
+    let lsb: u8 = (self.reg.PC & 0xFF).try_into().unwrap();
+
+    print!(" JSS: {:#02x} {:#02x} ", msb, lsb.wrapping_sub(1));
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
     self.reg.S = self.reg.S.wrapping_add(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
@@ -757,12 +791,14 @@ impl CPU {
   fn RTS(&mut self, bus: &mut Bus) {
     self.reg.S = self.reg.S.wrapping_sub(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
-    let mut lsb = bus.read(stack_addr.into());
+    let msb = bus.read(stack_addr.into());
+
     self.reg.S = self.reg.S.wrapping_sub(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
-    let msb = bus.read(stack_addr.into());
-    print!("RTS: {} {} ", msb, lsb);
-    lsb = lsb.wrapping_sub(1);
+    let mut lsb = bus.read(stack_addr.into());
+
+    lsb = lsb.wrapping_add(1);
+    print!(" RTS: {:#02x} {:#02x} ", msb, lsb);
     self.reg.PC = ((msb as u16) << 8) + lsb as u16;
     self.as_jump = true;
   }

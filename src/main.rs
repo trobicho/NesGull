@@ -36,10 +36,12 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut event_pump = sdl_context.event_pump()?;
 
   println!("Hello, world!");
-  let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
-  //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
+  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom));
-  nes.reset();
+  nes.reset_debug();
+  //nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");
   //nes.show_mem();

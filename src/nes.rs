@@ -35,6 +35,15 @@ impl Nes {
     self.ppu.load_palette(filename)
   }
 
+  pub fn reset_debug(&mut self) {
+    self.cpu.reset_debug(&mut self.bus);
+    match &self.cartridge.chr_rom {
+      Some(chr_rom) => {self.ppu.load(&chr_rom, self.cartridge.chr_size)},
+      None => {}
+    }
+    self.ppu.reset();
+  }
+
   pub fn reset(&mut self) {
     self.cpu.reset(&mut self.bus);
     match &self.cartridge.chr_rom {

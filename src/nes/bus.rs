@@ -4,6 +4,7 @@ use crate::nes::{
   mapper::{m000_nrom},
 };
 
+
 pub struct Bus {
   wram: Memory,
   mapper: m000_nrom::Nrom,
@@ -27,7 +28,7 @@ impl Bus {
 }
 
 
-impl MemRead for Bus{
+impl MemRead for Bus {
   fn read(&mut self, addr: usize) -> u8 {
     match addr {
       0x0000..=0x0800 => self.wram.read(addr),
@@ -37,11 +38,29 @@ impl MemRead for Bus{
   }
 }
 
-impl MemWrite for Bus{
+impl MemWrite for Bus {
   fn write(&mut self, addr: usize, value: u8) {
     match addr {
       0x0000..=0x0800 => self.wram.write(addr, value),
       0x4020..=0xFFFF => self.mapper.write(addr, value),
+      _ => (),
+    }
+  }
+}
+
+impl Bus {
+  fn ppu_read(&mut self, addr: usize) -> u8 {
+    match addr {
+      0x0000..=0x1FFF => self.mapper.read(addr),
+      //0x2000..=0xFFFF => self.vram.read(addr),
+      _ => 0,
+    }
+  }
+
+  fn ppu_write(&mut self, addr: usize, value: u8) {
+    match addr {
+      0x0000..=0x1FFF => self.mapper.write(addr, value),
+      //0x2000..=0xFFFF => self.vram.write(addr, value),
       _ => (),
     }
   }
