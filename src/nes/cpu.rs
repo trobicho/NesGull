@@ -143,6 +143,7 @@ pub struct CPU {
   addr_rel: i8,
   instr: InstructionInfo,
   op_len: u16,
+  as_jump: bool,
 }
 
 impl CPU {
@@ -157,6 +158,7 @@ impl CPU {
       addr_rel: 0,
       instr: InstructionInfo::new(),
       op_len: 0,
+      as_jump: false,
     }
   }
 
@@ -167,6 +169,22 @@ impl CPU {
 
     self.reg.PC = ((bus.read(0xFFFD) as u16) << 8) + bus.read(0xFFFC) as u16;
     println!("PC : {:#04x}", self.reg.PC);
+  }
+
+  pub fn debug_exec_instr(&mut self, bus: &mut Bus) {
+    self.read_instr(bus);
+    print!("{} ", self.instr.instr);
+    if self.op_len >= 1 {
+      print!(": {:#02x}", self.operand[0]);
+      if self.op_len == 2 {
+        print!(", {:#02x}", self.operand[1]);
+      }
+    }
+    self.exec_instr(bus);
+    if self.as_jump {
+      print!(" AS BRANCH");
+    }
+    println!("");
   }
 
   pub fn debug_read_instr(&mut self, bus: &mut Bus) {
@@ -197,6 +215,73 @@ impl CPU {
 
 #[allow(non_snake_case)]
 impl CPU {
+  fn exec_instr(&mut self, bus: &mut Bus) {
+    self.handle_adressing_mode(bus);
+    self.cycles_branch = 0;
+    self.as_jump = false;
+    match self.instr.instr {
+      //Logical and arithmetic commands:
+      Instruction::ORA => {self.ORA(bus)},
+      Instruction::AND => {self.AND(bus)},
+      Instruction::BIT => {self.BIT(bus)},
+      Instruction::EOR => {self.EOR(bus)},
+      Instruction::ADC => {self.ADC(bus)},
+      Instruction::CMP => {self.CMP(bus)},
+      Instruction::CPX => {self.CPX(bus)},
+      Instruction::CPY => {self.CPY(bus)},
+      Instruction::DEC => {self.DEC(bus)},
+      Instruction::DEX => {self.DEX(bus)},
+      Instruction::DEY => {self.DEY(bus)},
+      Instruction::INC => {self.INC(bus)},
+      Instruction::INX => {self.INX(bus)},
+      Instruction::INY => {self.INY(bus)},
+      Instruction::ASL => {self.ASL(bus)},
+      Instruction::ROL => {self.ROL(bus)},
+      Instruction::LSR => {self.LSR(bus)},
+      Instruction::ROR => {self.ROR(bus)},
+      //Move commands:
+      Instruction::LDA => {self.LDA(bus)},
+      Instruction::LDX => {self.LDX(bus)},
+      Instruction::LDY => {self.LDY(bus)},
+      Instruction::STA => {self.STA(bus)},
+      Instruction::STX => {self.STX(bus)},
+      Instruction::STY => {self.STY(bus)},
+      Instruction::TAX => {self.TAX(bus)},
+      Instruction::TXA => {self.TXA(bus)},
+      Instruction::TAY => {self.TAY(bus)},
+      Instruction::TYA => {self.TYA(bus)},
+      Instruction::TSX => {self.TSX(bus)},
+      Instruction::TXS => {self.TXS(bus)},
+      Instruction::PLA => {self.PLA(bus)},
+      Instruction::PHA => {self.PHA(bus)},
+      Instruction::PLP => {self.PLP(bus)},
+      Instruction::PHP => {self.PHP(bus)},
+      //Jump commands:
+      Instruction::BPL => {self.BPL(bus)},
+      Instruction::BMI => {self.BMI(bus)},
+      Instruction::BVC => {self.BVC(bus)},
+      Instruction::BVS => {self.BVS(bus)},
+      Instruction::BCC => {self.BCC(bus)},
+      Instruction::BCS => {self.BCS(bus)},
+      Instruction::BNE => {self.BNE(bus)},
+      Instruction::BEQ => {self.BEQ(bus)},
+      Instruction::BCS => {self.BCS(bus)},
+      Instruction::JMP => {self.JMP(bus)},
+      Instruction::JSR => {self.JSR(bus)},
+      Instruction::RTS => {self.RTS(bus)},
+      //Flags commands:
+      Instruction::CLC => {self.CLC(bus)},
+      Instruction::SEC => {self.SEC(bus)},
+      Instruction::CLD => {self.CLD(bus)},
+      Instruction::SED => {self.SED(bus)},
+      Instruction::CLI => {self.CLI(bus)},
+      Instruction::SEI => {self.SEI(bus)},
+      Instruction::CLV => {self.SEI(bus)},
+      Instruction::NOP => (),
+      _ => {println!("not implemented yet: {}", self.instr.instr)}
+    }
+  }
+
   fn handle_adressing_mode(&mut self, bus: &mut Bus) {
     match self.instr.mode {
       OpMode::ACC => {self.operand[0] = self.reg.A},
@@ -322,7 +407,7 @@ impl CPU {
     }
   }
 
-  fn CMX(&mut self, _bus: &mut Bus) {
+  fn CPX(&mut self, _bus: &mut Bus) {
     if self.reg.X < self.operand[0] {
       self.reg.P.set_C(false);
       self.reg.P.set_Z(false);
@@ -338,7 +423,7 @@ impl CPU {
     }
   }
 
-  fn CMY(&mut self, _bus: &mut Bus) {
+  fn CPY(&mut self, _bus: &mut Bus) {
     if self.reg.Y < self.operand[0] {
       self.reg.P.set_C(false);
       self.reg.P.set_Z(false);
@@ -600,6 +685,7 @@ impl CPU {
     self.cycles_branch = 
       if (pc.wrapping_shr(8)) == (self.reg.PC.wrapping_shr(8)) {3}
       else {1};
+    self.as_jump = true;
   }
 
   fn BCS(&mut self, bus: &mut Bus) {
@@ -636,17 +722,19 @@ impl CPU {
 
   fn JMP(&mut self, _bus: &mut Bus) {
     self.reg.PC = self.addr_abs;
+    self.as_jump = true;
   }
 
   fn JSR(&mut self, bus: &mut Bus) {
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     let lsb: u8 = (self.reg.PC.wrapping_shr(8)).try_into().unwrap();
-    let msb: u8 = (self.reg.PC.wrapping_shl(8)).try_into().unwrap();
+    let msb: u8 = (self.reg.PC.wrapping_shl(8).wrapping_shr(8)).try_into().unwrap();
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
     self.reg.S = self.reg.S.wrapping_add(1);
     bus.write(stack_addr.into(), msb);
     self.reg.S = self.reg.S.wrapping_add(1);
     self.reg.PC = self.addr_abs;
+    self.as_jump = true;
   }
 
   fn RTS(&mut self, bus: &mut Bus) {
@@ -657,6 +745,7 @@ impl CPU {
     self.reg.S = self.reg.S.wrapping_sub(1);
     lsb = lsb.wrapping_sub(1);
     self.reg.PC = ((msb as u16) << 8) + lsb as u16;
+    self.as_jump = true;
   }
 
   //Flags commands:
@@ -690,5 +779,8 @@ impl CPU {
 
   //Interrupt commands:
   fn BRK(&mut self, _bus: &mut Bus) { // TODO
+  }
+
+  fn RTI(&mut self, _bus: &mut Bus) { // TODO
   }
 }

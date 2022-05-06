@@ -59,4 +59,8 @@ impl Nes {
       self.cpu.debug_read_instr(&mut self.bus);
     }
   }
+
+  pub fn run_step(&mut self) {
+    self.cpu.debug_exec_instr(&mut self.bus);
+  }
 }

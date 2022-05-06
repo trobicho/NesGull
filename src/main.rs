@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");
   //nes.show_mem();
-  nes.run();
+  //nes.run();
   println!("=============================");
 
   let mut running = true;
@@ -56,6 +56,9 @@ fn main() -> Result<(), Box<dyn Error>>{
            ..
         } => {
           running = false;
+        },
+        Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
+          nes.run_step();
         }
         _ => {}
       }
