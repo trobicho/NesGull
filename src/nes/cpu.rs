@@ -4,6 +4,7 @@ use std::fmt;
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
   bus::Bus,
+  clock::Clock,
 };
 
 
@@ -150,80 +151,70 @@ fn operand_lenght(instr: &InstructionInfo) -> u16 {
 
 pub struct CPU {
   reg: Reg,
-  cycles_since_startup: u32,
+  cycles_frame: u32,
   cycles_instr: u32,
-  cycles_branch : u32,
+  cycles_since_last_exec: u32,
   operand: [u8; 2],
   addr_abs: u16,
   addr_rel: i8,
   instr: InstructionInfo,
   op_len: u16,
   as_jump: bool,
-  nb_instr_exec: u32,
+  have_BCD: bool,
+}
+
+impl Clock for CPU {
+  fn tick(&mut self, bus: &mut Bus) -> bool{
+    self.cycles_since_last_exec += 1;
+    self.cycles_frame += 1;
+    if self.cycles_since_last_exec >= self.cycles_instr{
+      self.debug_next_instr(bus);
+      self.cycles_since_last_exec = 0;
+      true
+    } else {
+      false
+    }
+  }
 }
 
 impl CPU {
   pub fn new() -> Self{
     Self {
       reg: Reg::new(),
-      cycles_since_startup: 0,
+      cycles_frame: 0,
       cycles_instr: 0,
-      cycles_branch: 0,
+      cycles_since_last_exec: 0,
       operand: [0, 0],
       addr_abs: 0,
       addr_rel: 0,
       instr: InstructionInfo::new(),
       op_len: 0,
       as_jump: false,
-      nb_instr_exec: 0,
+      have_BCD: false,
     }
+  }
+
+  pub fn reset_cycles_frame(&mut self) {
+    self.cycles_frame = 0;
+  }
+
+  pub fn get_cycles_frame(&self) -> u32 {
+    self.cycles_frame
   }
 
   pub fn reset(&mut self, bus: &mut Bus) {
     self.reg.reset();
-    self.cycles_since_startup = 0;
-    self.cycles_instr = 0;
+    self.cycles_frame = 0;
+    self.cycles_instr = 7;
+    self.cycles_since_last_exec = 0;
 
     self.reg.PC = ((bus.read(0xFFFD) as u16) << 8) + bus.read(0xFFFC) as u16;
-    println!("PC : {:#04x}", self.reg.PC);
   }
 
-  pub fn reset_debug(&mut self, bus: &mut Bus) {
-    self.reg.reset();
-    self.cycles_since_startup = 0;
+  pub fn next_instr(&mut self, bus: &mut Bus) {
     self.cycles_instr = 0;
-
-    self.reg.PC = 0xC000;
-    println!("PC : {:#04x}", self.reg.PC);
-  }
-
-  pub fn debug_exec_instr(&mut self, bus: &mut Bus) {
-    self.nb_instr_exec += 1;
     self.read_instr(bus);
-    print!("{} {}[{:#02x}] ", self.nb_instr_exec, self.instr.instr, self.instr.opcode);
-    if self.op_len >= 1 {
-      print!(": {:#02x}", self.operand[0]);
-      if self.op_len == 2 {
-        print!(", {:#02x}", self.operand[1]);
-      }
-    }
     self.exec_instr(bus);
-    if self.as_jump {
-      print!(" AS BRANCH to {:#04x}", self.reg.PC);
-    }
-    println!("");
-  }
-
-  pub fn debug_read_instr(&mut self, bus: &mut Bus) {
-    self.read_instr(bus);
-    print!("{}", self.instr.instr);
-    if self.op_len >= 1 {
-      print!(": {:#02x}", self.operand[0]);
-      if self.op_len == 2 {
-        print!(", {:#02x}", self.operand[1]);
-      }
-    }
-    println!("");
   }
 
   fn read_instr(&mut self, bus: &mut Bus) {
@@ -240,11 +231,42 @@ impl CPU {
   }
 }
 
+impl CPU {
+  pub fn debug_reset(&mut self, bus: &mut Bus) {
+    self.reg.reset();
+    self.reset(bus);
+
+    self.reg.PC = 0xC000;
+    println!("PC : {:#04x}", self.reg.PC);
+  }
+
+  pub fn debug_next_instr(&mut self, bus: &mut Bus) {
+    self.cycles_instr = 0;
+    print!("{:#04x}", self.reg.PC);
+    self.read_instr(bus);
+    print!(" {}[{:#02x}]", self.instr.instr, self.instr.opcode);
+    self.exec_instr(bus);
+    if self.op_len >= 1 {
+      print!(", {:#02x}", self.operand[0]);
+      if self.op_len == 2 {
+        print!(", {:#02x}", self.operand[1]);
+      } else {
+        print!("\t");
+      }
+    } else {
+      print!("\t");
+    }
+    if self.as_jump {
+      //print!(" AS BRANCH to {:#04x}", self.reg.PC);
+    }
+  }
+}
+
 #[allow(non_snake_case)]
 impl CPU {
   fn exec_instr(&mut self, bus: &mut Bus) {
+    self.cycles_instr = self.instr.cycles;
     self.handle_adressing_mode(bus);
-    self.cycles_branch = 0;
     self.as_jump = false;
     match self.instr.instr {
       //Logical and arithmetic commands:
@@ -341,6 +363,9 @@ impl CPU {
         let addr2 = bus.read(ind + 1);
         self.addr_abs = (((addr1 as u16) << 8) + addr2 as u16) + self.reg.Y as u16;
         self.operand[0] = bus.read(self.addr_abs.into());
+        if self.instr.cycle_inc_pbc && self.addr_abs.wrapping_shr(8) != addr1 as u16 {
+          self.cycles_instr += 2;
+        }
       },
       OpMode::ABS => {
         self.addr_abs = ((self.operand[1] as u16) << 8)  + self.operand[0] as u16;
@@ -349,10 +374,18 @@ impl CPU {
       OpMode::ABX => {
         self.addr_abs = ((self.operand[1] as u16) << 8)  + self.operand[0] as u16 + self.reg.X as u16;
         self.operand[0] = bus.read(self.addr_abs.into());
+        if self.instr.cycle_inc_pbc
+            && self.addr_abs.wrapping_shr(8) != self.operand[1] as u16 {
+          self.cycles_instr += 2;
+        }
       },
       OpMode::ABY => {
         self.addr_abs = ((self.operand[1] as u16) << 8)  + self.operand[0] as u16 + self.reg.Y as u16;
         self.operand[0] = bus.read(self.addr_abs.into());
+        if self.instr.cycle_inc_pbc
+            && self.addr_abs.wrapping_shr(8) != self.operand[1] as u16 {
+          self.cycles_instr += 2;
+        }
       },
       OpMode::IND => {
         let ind: usize = ((self.operand[1] as usize) << 8) + self.operand[0] as usize;
@@ -376,7 +409,7 @@ impl CPU {
 
   //Logical and arithmetic commands:
   fn ADC(&mut self, _bus: &mut Bus) {
-    if self.reg.P.get_D() == false {
+    if !self.have_BCD || self.reg.P.get_D() == false {
       let carry: u8 = if self.reg.P.get_C() {1} else {0};
       let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
       let n_o: bool = if self.operand[0] & 0b1000_0000 != 0 {true} else {false};
@@ -393,7 +426,7 @@ impl CPU {
   }
 
   fn SBC(&mut self, _bus: &mut Bus) {
-    if self.reg.P.get_D() == false {
+    if !self.have_BCD || self.reg.P.get_D() == false {
       let carry: u8 = if self.reg.P.get_C() {1} else {0};
       let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
       let n_o: bool = if self.operand[0] & 0b1000_0000 != 0 {true} else {false};
@@ -726,11 +759,12 @@ impl CPU {
 
   //Jump / Branch commands:
   fn branch(&mut self, _bus: &mut Bus) {
-    let pc = self.addr_abs;
-    self.cycles_branch = 
-      if (pc.wrapping_shr(8)) == (self.reg.PC.wrapping_shr(8)) {3}
-      else {1};
-    self.reg.PC = pc;
+    self.cycles_instr += 1;
+    if self.instr.cycle_inc_pbc && self.reg.PC.wrapping_shr(8) !=
+        self.addr_abs.wrapping_shr(8) {
+      self.cycles_instr += 1;
+    }
+    self.reg.PC = self.addr_abs;
     self.as_jump = true;
   }
 
@@ -747,7 +781,6 @@ impl CPU {
   }
 
   fn BNE(&mut self, bus: &mut Bus) {
-    print!(" {} ", self.reg.P.get_Z());
     if !self.reg.P.get_Z() {self.branch(bus);}
   }
 
@@ -773,12 +806,10 @@ impl CPU {
   }
 
   fn JSR(&mut self, bus: &mut Bus) {
-    print!(" PC: {:#04x}", self.reg.PC);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     let msb: u8 = (self.reg.PC.wrapping_shr(8)).try_into().unwrap();
     let lsb: u8 = (self.reg.PC & 0xFF).try_into().unwrap();
 
-    print!(" JSS: {:#02x} {:#02x} ", msb, lsb.wrapping_sub(1));
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
     self.reg.S = self.reg.S.wrapping_add(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
@@ -798,7 +829,6 @@ impl CPU {
     let mut lsb = bus.read(stack_addr.into());
 
     lsb = lsb.wrapping_add(1);
-    print!(" RTS: {:#02x} {:#02x} ", msb, lsb);
     self.reg.PC = ((msb as u16) << 8) + lsb as u16;
     self.as_jump = true;
   }

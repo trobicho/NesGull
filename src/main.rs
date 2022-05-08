@@ -5,12 +5,14 @@ mod nes;
 mod rom;
 
 use std::error::Error;
-use nes::Nes;
+use nes::{Nes};
 use nes::cartridge::Cartridge;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
+use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::rect::Rect;
 
 fn find_sdl_gl_driver() -> Option<u32> {
   for (index, item) in sdl2::render::drivers().enumerate() {
@@ -37,10 +39,10 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   println!("Hello, world!");
   //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
-  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
-  //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
+  //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom));
-  nes.reset_debug();
+  nes.debug_reset();
   //nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
   println!("=============================");
@@ -48,6 +50,14 @@ fn main() -> Result<(), Box<dyn Error>>{
   //nes.run();
   println!("=============================");
 
+  let texture_creator: TextureCreator<_> = canvas.texture_creator();
+  let ppu_info = nes.ppu_rendering_info();
+  let mut frame_texture = texture_creator
+    .create_texture_target(None, ppu_info.frame_w as u32, ppu_info.frame_h as u32)
+    .map_err(|e| e.to_string())?;
+
+  let (height, width) = canvas.output_size()?;
+  let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
   while running {
     for event in event_pump.poll_iter() {
@@ -60,14 +70,16 @@ fn main() -> Result<(), Box<dyn Error>>{
           running = false;
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
-          nes.run_step();
+          nes.tick_n(12);
         }
         _ => {}
       }
     }
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();
-    nes.render(&mut canvas);
+    let frame = nes.render_frame();
+    frame_texture.update(frame_rect, frame.get_texture_buffer(), frame.width * 4);
+    canvas.copy(&frame_texture, None, frame_rect)?;
     canvas.present();
     std::thread::sleep(Duration::from_millis(100));
   }

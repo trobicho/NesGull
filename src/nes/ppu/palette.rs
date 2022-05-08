@@ -4,25 +4,25 @@ use std::error::Error;
 #[allow(non_snake_case)]
 #[derive(Debug, Copy, Clone)]
 pub struct NesColor {
-  R: u8,
-  G: u8,
-  B: u8,
+  pub R: u8,
+  pub G: u8,
+  pub B: u8,
 }
 
 pub struct Palette {
-  color: [NesColor; 64],
+  pub color: [NesColor; 64],
 }
 
 impl Palette {
-  new() -> Self {
+  pub fn new() -> Self {
     Self {
-      color: [NesColor{R: 0, G: 0, B: 0}; 64]
+      color: [NesColor{R: 0, G: 0, B: 0}; 64],
     }
   }
 
-  from_file(filename: str) -> Result<Self, Box dyn Error> {
+  pub fn from_file(filename: &str) -> Result<Self, Box<dyn Error>> {
     let file = fs::read(filename)?;
-    let vec [NesColor; 64];
+    let mut vec = [NesColor{R: 0, G: 0, B: 0}; 64];
     for i in 0..64 {
       vec[i] = NesColor {
         R: file[i * 3],
@@ -30,11 +30,12 @@ impl Palette {
         B: file[i * 3 + 2],
       };
     }
-    Self {
+    Ok(Self {
       color: vec
-    }
+    })
   }
-  change_from_file(&mut self, filename: str) -> Result<(), Box dyn Error> {
+
+  pub fn change_from_file(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
     let file = fs::read(filename)?;
     for i in 0..64 {
       self.color[i] = NesColor {
@@ -43,5 +44,6 @@ impl Palette {
         B: file[i * 3 + 2],
       };
     }
+    Ok(())
   }
 }

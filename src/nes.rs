@@ -1,24 +1,28 @@
 mod cpu;
-mod old_ppu;
+pub mod ppu;
 mod memory;
 mod bus;
 mod mapper;
 pub mod cartridge;
+mod clock;
 
 
 use std::error::Error;
 use bus::Bus;
 use cpu::CPU;
-use old_ppu::PPU;
+use ppu::{PPU, PPUInfo};
 use cartridge::Cartridge;
+use clock::{Clock, SlaveClock};
 
 use sdl2::render::Canvas;
 
 pub struct Nes {
-  cpu : CPU,
-  ppu : PPU,
-  bus : Bus,
-  cartridge : Cartridge,
+  cpu: CPU,
+  ppu: PPU,
+  bus: Bus,
+  cpu_clock: SlaveClock,
+  ppu_clock: SlaveClock,
+  cartridge: Cartridge,
 }
 
 impl Nes {
@@ -27,6 +31,8 @@ impl Nes {
       cpu: CPU::new(),
       ppu: PPU::new(),
       bus: Bus::new(&cartridge),
+      cpu_clock: SlaveClock::new(12),
+      ppu_clock: SlaveClock::new(4),
       cartridge,
     }
   }
@@ -35,26 +41,18 @@ impl Nes {
     self.ppu.load_palette(filename)
   }
 
-  pub fn reset_debug(&mut self) {
-    self.cpu.reset_debug(&mut self.bus);
-    match &self.cartridge.chr_rom {
-      Some(chr_rom) => {self.ppu.load(&chr_rom, self.cartridge.chr_size)},
-      None => {}
-    }
+  pub fn debug_reset(&mut self) {
+    self.cpu.debug_reset(&mut self.bus);
     self.ppu.reset();
   }
 
   pub fn reset(&mut self) {
     self.cpu.reset(&mut self.bus);
-    match &self.cartridge.chr_rom {
-      Some(chr_rom) => {self.ppu.load(&chr_rom, self.cartridge.chr_size)},
-      None => {}
-    }
     self.ppu.reset();
   }
 
-  pub fn render(&mut self, canvas: &mut Canvas<sdl2::video::Window>) {
-    self.ppu.render(canvas);
+  pub fn render_frame(&mut self) -> &ppu::Frame{
+    self.ppu.render_frame(&mut self.bus)
   }
 
   pub fn show_mem(&self) {
@@ -63,13 +61,35 @@ impl Nes {
     //self.ppu.show_mem();
   }
 
-  pub fn run(&mut self) {
-    for _ in 0..10 {
-      self.cpu.debug_read_instr(&mut self.bus);
+  pub fn tick(&mut self) {
+    if self.ppu_clock.tick() {
+      self.ppu.tick(&mut self.bus);
+    }
+
+    if self.cpu_clock.tick() {
+      if self.cpu.tick(&mut self.bus) {
+        let (s_index, cycles) = self.ppu.get_cycles_info();
+        println!("\tPPU: {} {}\t{}", s_index, cycles
+          , self.cpu.get_cycles_frame());
+      }
     }
   }
 
+  pub fn tick_n(&mut self, t: u32) {
+    for _t in 0..t {
+      self.tick();
+    }
+  }
+
+  /*
   pub fn run_step(&mut self) {
+    let cycles = self.cpu.cycles_since_startup();
     self.cpu.debug_exec_instr(&mut self.bus);
+    println!("\t\t{}", cycles);
+  }
+  */
+
+  pub fn ppu_rendering_info(&self) -> PPUInfo {
+    self.ppu.render_info()
   }
 }
