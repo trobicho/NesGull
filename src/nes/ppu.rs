@@ -110,8 +110,11 @@ impl PPU {
 impl Clock for PPU {
   fn tick(&mut self, bus: &mut Bus) -> bool {
     match self.cycle_n {
-      1..=256 => {self.frame.put_pixel((self.cycle_n - 1) as usize
-        , self.scanline_index as usize, self.palette.color[21])},
+      1..=256 => {if (self.scanline_index as usize) < self.frame.height {
+          self.frame.put_pixel((self.cycle_n - 1) as usize
+            , self.scanline_index as usize, self.palette.color[21])
+        }
+      },
       _ => {},
     }
     if self.cycle_n == 340 {

@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn Error>>{
           running = false;
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
-          nes.tick_n(12);
+          nes.tick_n(12 * 1000);
         }
         _ => {}
       }

@@ -370,7 +370,7 @@ pub fn opcode_to_enum(opcode: u8) -> InstructionInfo {
     0xD0 => (InstructionInfo{instr: Instruction::BNE, opcode: 0xD0, mode: OpMode::REL, cycles: 2, cycle_inc_pbc: true, legality: LegalityType::Legal}),
     0xD1 => (InstructionInfo{instr: Instruction::CMP, opcode: 0xD1, mode: OpMode::IZY, cycles: 5, cycle_inc_pbc: true, legality: LegalityType::Legal}),
     0xD2 => (InstructionInfo{instr: Instruction::KIL, opcode: 0xD2, mode: OpMode::IMP, cycles: 0, cycle_inc_pbc: false, legality: LegalityType::IllegalStable}),
-    0xD3 => (InstructionInfo{instr: Instruction::DCP, opcode: 0xD3, mode: OpMode::IZX, cycles: 8, cycle_inc_pbc: false, legality: LegalityType::IllegalStable}),
+    0xD3 => (InstructionInfo{instr: Instruction::DCP, opcode: 0xD3, mode: OpMode::IZY, cycles: 8, cycle_inc_pbc: false, legality: LegalityType::IllegalStable}),
     0xD4 => (InstructionInfo{instr: Instruction::NOP, opcode: 0xD4, mode: OpMode::ZPX, cycles: 4, cycle_inc_pbc: false, legality: LegalityType::IllegalStable}),
     0xD5 => (InstructionInfo{instr: Instruction::CMP, opcode: 0xD5, mode: OpMode::ZPX, cycles: 4, cycle_inc_pbc: false, legality: LegalityType::Legal}),
     0xD6 => (InstructionInfo{instr: Instruction::DEC, opcode: 0xD6, mode: OpMode::ZPX, cycles: 6, cycle_inc_pbc: false, legality: LegalityType::Legal}),

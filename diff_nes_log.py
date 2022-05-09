@@ -91,7 +91,7 @@ out_lines = out_f.readlines();
 
 nb_error = 0;
 last_error = (0, "");
-for i in range(0, len(out_lines) - 1):
+for i in range(0, len(out_lines)):
   log_split = log_lines[i].split();
   out_split = out_lines[i].split();
 
@@ -117,7 +117,7 @@ for i in range(0, len(out_lines) - 1):
   if (error[0] == 2):
     break;
   last_error = error;
-  if (i == len(log_lines) - 1):
+  if (i == len(log_lines) - 1 or i == len(out_lines) - 1):
     print("Congrats!!!");
     break;
   

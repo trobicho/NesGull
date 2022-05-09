@@ -530,7 +530,8 @@ impl CPU {
     r = r.wrapping_sub(1);
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
-    bus.write(self.addr_abs.into(), r)
+    bus.write(self.addr_abs.into(), r);
+    self.operand[0] = r;
   }
 
   fn DEX(&mut self, _bus: &mut Bus) {
@@ -555,6 +556,7 @@ impl CPU {
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
     bus.write(self.addr_abs.into(), r);
+    self.operand[0] = r;
   }
 
   fn INX(&mut self, _bus: &mut Bus) {
@@ -583,6 +585,7 @@ impl CPU {
     }
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+    self.operand[0] = r;
   }
 
   fn LSR(&mut self, bus: &mut Bus) {
@@ -595,6 +598,7 @@ impl CPU {
     }
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(false);
+    self.operand[0] = r;
   }
 
   fn ROL(&mut self, bus: &mut Bus) {
@@ -611,6 +615,7 @@ impl CPU {
     }
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+    self.operand[0] = r;
   }
 
   fn ROR(&mut self, bus: &mut Bus) {
@@ -627,6 +632,7 @@ impl CPU {
     }
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_N(if r & 0b1000_0000 != 0 {true} else {false});
+    self.operand[0] = r;
   }
 
   //Move commands:
@@ -883,7 +889,8 @@ impl CPU {
     self.LDX(bus);
   }
   fn DCP(&mut self, bus: &mut Bus) {
-    self.operand[0] = self.operand[0].wrapping_sub(1);
+    self.DEC(bus);
+    //print!("DCP{:#06x}:{:#04x},{:#04x}", self.addr_abs, bus.read(self.addr_abs.into()), self.operand[0]);
     self.CMP(bus);
   }
   fn ISC(&mut self, bus: &mut Bus) {
