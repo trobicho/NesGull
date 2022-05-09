@@ -18,7 +18,10 @@ impl Nrom {
       prg_ram: Memory::ram(8 * 1024),
       prg_rom: Memory::rom_from_bytes(&cartridge.prg_rom),
       chr_rom: {match &cartridge.chr_rom {
-        Some(chr_rom) => Memory::rom_from_bytes(&chr_rom),
+        Some(chr_rom) => {
+          println!();
+          Memory::rom_from_bytes(&chr_rom)
+        },
         None => (Memory::new())
       }}
     }

@@ -26,7 +26,7 @@ fn find_sdl_gl_driver() -> Option<u32> {
 fn main() -> Result<(), Box<dyn Error>>{
   let sdl_context = sdl2::init()?;
   let video_subsystem = sdl_context.video()?;
-  let window = video_subsystem.window("NES emulator", 1200, 800)
+  let window = video_subsystem.window("NES emulator", 256 * 4, 224 * 4)
     .opengl()
     .build()
     .map_err(|e| e.to_string())?;
@@ -38,10 +38,10 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut event_pump = sdl_context.event_pump()?;
 
   //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
-  //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
-  let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
+  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom));
-  nes.debug_reset();
+  nes.reset();
   //nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
   //println!("=============================");
@@ -56,7 +56,6 @@ fn main() -> Result<(), Box<dyn Error>>{
     .map_err(|e| e.to_string())?;
 
   nes.render_frame();
-  nes.tick_n(20000 * 12);
   let (height, width) = canvas.output_size()?;
   let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
@@ -71,7 +70,6 @@ fn main() -> Result<(), Box<dyn Error>>{
           running = false;
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
-          nes.tick_n(12 * 1000);
         }
         _ => {}
       }
@@ -79,9 +77,10 @@ fn main() -> Result<(), Box<dyn Error>>{
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();
     let frame = nes.get_frame();
-    frame_texture.update(frame_rect, frame.get_texture_buffer(), frame.width * 4);
+    frame_texture.update(frame_rect, frame.get_texture_buffer(), frame.width * 4)?;
     canvas.copy(&frame_texture, None, frame_rect)?;
     canvas.present();
+    nes.tick_scanline();
     std::thread::sleep(Duration::from_millis(100));
   }
   Ok(())

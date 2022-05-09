@@ -65,9 +65,10 @@ impl Nes {
     //self.ppu.show_mem();
   }
 
-  pub fn tick(&mut self) {
+  pub fn tick(&mut self) -> bool{
+    let mut b = false;
     if self.ppu_clock.tick() {
-      self.ppu.tick(&mut self.bus);
+      b = self.ppu.tick(&mut self.bus);
     }
 
     if self.cpu_clock.tick() {
@@ -77,6 +78,7 @@ impl Nes {
           , self.cpu.get_cycles_frame());
       }
     }
+    b
   }
 
   pub fn tick_n(&mut self, t: u32) {
@@ -85,6 +87,13 @@ impl Nes {
     }
   }
 
+  pub fn tick_scanline(&mut self) {
+    loop {
+      if self.tick() {
+        break;
+      }
+    }
+  }
   /*
   pub fn run_step(&mut self) {
     let cycles = self.cpu.cycles_since_startup();

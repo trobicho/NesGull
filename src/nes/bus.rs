@@ -61,7 +61,7 @@ impl MemWrite for Bus {
 }
 
 impl Bus {
-  fn ppu_read(&mut self, addr: usize) -> u8 {
+  pub fn ppu_read(&mut self, addr: usize) -> u8 {
     match addr {
       0x0000..=0x1FFF => self.mapper.read(addr),
       0x2000..=0x2FFF => self.vram.read(addr),
@@ -70,7 +70,7 @@ impl Bus {
     }
   }
 
-  fn ppu_write(&mut self, addr: usize, value: u8) {
+  pub fn ppu_write(&mut self, addr: usize, value: u8) {
     match addr {
       0x0000..=0x1FFF => self.mapper.write(addr, value),
       0x2000..=0x2FFF => self.vram.write(addr, value),

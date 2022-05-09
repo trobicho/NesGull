@@ -1,4 +1,5 @@
 mod palette;
+mod register;
 
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
@@ -6,12 +7,16 @@ use crate::nes::{
   clock::Clock,
 };
 use palette::{Palette, NesColor};
+use register::*;
 
 use std::error::Error;
+use rand::Rng;
 
 const FRAME_HEIGHT_NTSC: usize = 224;
 const FRAME_HEIGHT_PAL: usize = 240;
 const FRAME_WIDTH: usize = 256;
+const PATTERN_TABLE_ADDR: u16 = 0x0000;
+const NAMETABLE_ADDR: u16 = 0x2000;
 
 pub struct Frame {
   pub width: usize,
@@ -58,8 +63,10 @@ pub struct PPU {
   frame: Frame,
   oam: Memory,
   palette_mem: Memory,
-  scanline_index: u32,
+  scanline_n : u32,
   cycle_n: u32,
+  rendering_enable: bool,
+  reg: Register,
 }
 
 impl PPU {
@@ -69,8 +76,10 @@ impl PPU {
       frame: Frame::new(FRAME_WIDTH, FRAME_HEIGHT_NTSC),
       oam: Memory::ram(256),
       palette_mem: Memory::ram(32),
-      scanline_index: 0,
+      scanline_n : 261,
       cycle_n: 0,
+      rendering_enable: true,
+      reg: Register::new(),
     }
   }
 
@@ -81,7 +90,7 @@ impl PPU {
     self.palette.change_from_file(filename)
   }
 
-  pub fn render_frame(&mut self, bus: &mut Bus) -> &Frame {
+  pub fn render_frame(&mut self, _bus: &mut Bus) -> &Frame {
     for y in 0..self.frame.height {
       for x in 0..self.frame.width {
         let palette_index: u32 = ((x as f32 / self.frame.width as f32) * 16.0) as u32
@@ -93,12 +102,81 @@ impl PPU {
     &self.frame
   }
 
+  //DCBA98 76543210
+  //---------------
+  //0HRRRR CCCCPTTT
+  //|||||| |||||+++- T: Fine Y offset, the row number within a tile
+  //|||||| ||||+---- P: Bit plane (0: "lower"; 1: "upper")
+  //|||||| ++++----- C: Tile column
+  //||++++---------- R: Tile row
+  //|+-------------- H: Half of sprite table (0: "left"; 1: "right")
+  //+--------------- 0: Pattern table is at $0000-$1FFF
+  pub fn feed_shift_back(&mut self, bus: &mut Bus){
+    let fine_y: u16 = (self.scanline_n % 8) as u16;
+    let pattern_n = bus.read(self.reg.vram_cur as usize);
+    let mut pattern_addr: u16 = ((pattern_n & 0b1111_1111)as u16).wrapping_shl(4);
+
+    pattern_addr += fine_y;
+    let r = bus.ppu_read(pattern_addr.into());
+    self.reg.load_back_upper(r, 0);
+    pattern_addr += 8;
+
+    let r = bus.ppu_read(pattern_addr.into());
+    self.reg.load_back_upper(r, 1);
+    self.reg.vram_cur += 1;
+  }
+
+  pub fn scanline_vblank(&mut self, bus: &mut Bus) {
+      self.reg.vram_cur = PATTERN_TABLE_ADDR;
+      self.reg.vram_temp = PATTERN_TABLE_ADDR;
+  }
+
+  pub fn scanline_prerender(&mut self, bus: &mut Bus) {
+    if self.cycle_n % 8 == 0 {
+      self.feed_shift_back(bus);
+    }
+  }
+
+  pub fn scanline_render(&mut self, bus: &mut Bus) {
+    let mut color = self.palette.color[0];
+    if self.reg.shift_back_16[0] & 0b1 == 1 {
+      color = self.palette.color[27];
+    }
+    self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, color);
+    self.reg.shift_background();
+  }
+
+  pub fn handle_scanline(&mut self, bus: &mut Bus) -> bool{
+    match self.scanline_n {
+      261 => {self.scanline_prerender(bus);},
+      0..=222 => {
+        self.scanline_prerender(bus);
+        if self.cycle_n < 256 {
+          self.scanline_render(bus);
+        }
+      }
+      _ => {self.scanline_vblank(bus);}
+    }
+    if self.cycle_n >= 340 {
+      self.cycle_n = 0;
+      self.scanline_n = self.scanline_n.wrapping_add(1);
+      if self.scanline_n >= 261 {
+        self.scanline_n = 0;
+      }
+      true
+    }
+    else {
+      self.cycle_n += 1;
+      false
+    }
+  }
+
   pub fn get_frame(&self) -> &Frame {
     &self.frame
   }
 
   pub fn get_cycles_info(&self) -> (u32, u32) {
-    (self.scanline_index, self.cycle_n)
+    (self.scanline_n, self.cycle_n)
   }
 
   pub fn render_info(&self) -> PPUInfo {
@@ -109,21 +187,6 @@ impl PPU {
 
 impl Clock for PPU {
   fn tick(&mut self, bus: &mut Bus) -> bool {
-    match self.cycle_n {
-      1..=256 => {if (self.scanline_index as usize) < self.frame.height {
-          self.frame.put_pixel((self.cycle_n - 1) as usize
-            , self.scanline_index as usize, self.palette.color[21])
-        }
-      },
-      _ => {},
-    }
-    if self.cycle_n == 340 {
-      self.cycle_n = 0;
-      self.scanline_index += 1;
-    }
-    else {
-      self.cycle_n += 1;
-    }
-    true
+    self.handle_scanline(bus)
   }
 }

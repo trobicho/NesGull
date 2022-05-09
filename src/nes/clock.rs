@@ -3,7 +3,7 @@ use crate::nes::{
 };
 
 pub trait Clock {
-  fn tick(&mut self, bus: &mut Bus) -> bool {
+  fn tick(&mut self, _bus: &mut Bus) -> bool {
     false
   }
 
