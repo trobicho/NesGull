@@ -59,7 +59,7 @@ pub struct PPU {
   oam: Memory,
   palette_mem: Memory,
   scanline_index: u32,
-  cycles: u32,
+  cycle_n: u32,
 }
 
 impl PPU {
@@ -70,7 +70,7 @@ impl PPU {
       oam: Memory::ram(256),
       palette_mem: Memory::ram(32),
       scanline_index: 0,
-      cycles: 0,
+      cycle_n: 0,
     }
   }
 
@@ -81,7 +81,7 @@ impl PPU {
     self.palette.change_from_file(filename)
   }
 
-  pub fn render_frame(&mut self, bus: &mut Bus) -> &Frame{
+  pub fn render_frame(&mut self, bus: &mut Bus) -> &Frame {
     for y in 0..self.frame.height {
       for x in 0..self.frame.width {
         let palette_index: u32 = ((x as f32 / self.frame.width as f32) * 16.0) as u32
@@ -93,8 +93,12 @@ impl PPU {
     &self.frame
   }
 
+  pub fn get_frame(&self) -> &Frame {
+    &self.frame
+  }
+
   pub fn get_cycles_info(&self) -> (u32, u32) {
-    (self.scanline_index, self.cycles)
+    (self.scanline_index, self.cycle_n)
   }
 
   pub fn render_info(&self) -> PPUInfo {
@@ -105,10 +109,17 @@ impl PPU {
 
 impl Clock for PPU {
   fn tick(&mut self, bus: &mut Bus) -> bool {
-    self.cycles += 1;
-    if (self.cycles == 341) {
+    match self.cycle_n {
+      1..=256 => {self.frame.put_pixel((self.cycle_n - 1) as usize
+        , self.scanline_index as usize, self.palette.color[21])},
+      _ => {},
+    }
+    if self.cycle_n == 340 {
+      self.cycle_n = 0;
       self.scanline_index += 1;
-      self.cycles = 0;
+    }
+    else {
+      self.cycle_n += 1;
     }
     true
   }

@@ -37,7 +37,6 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   let mut event_pump = sdl_context.event_pump()?;
 
-  println!("Hello, world!");
   //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
   //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
   let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
@@ -45,10 +44,10 @@ fn main() -> Result<(), Box<dyn Error>>{
   nes.debug_reset();
   //nes.reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
-  println!("=============================");
+  //println!("=============================");
   //nes.show_mem();
   //nes.run();
-  println!("=============================");
+  //println!("=============================");
 
   let texture_creator: TextureCreator<_> = canvas.texture_creator();
   let ppu_info = nes.ppu_rendering_info();
@@ -56,6 +55,8 @@ fn main() -> Result<(), Box<dyn Error>>{
     .create_texture_target(None, ppu_info.frame_w as u32, ppu_info.frame_h as u32)
     .map_err(|e| e.to_string())?;
 
+  nes.render_frame();
+  nes.tick_n(20000 * 12);
   let (height, width) = canvas.output_size()?;
   let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
@@ -77,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     }
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();
-    let frame = nes.render_frame();
+    let frame = nes.get_frame();
     frame_texture.update(frame_rect, frame.get_texture_buffer(), frame.width * 4);
     canvas.copy(&frame_texture, None, frame_rect)?;
     canvas.present();

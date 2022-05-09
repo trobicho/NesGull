@@ -2,5 +2,6 @@
 /roms
 /palettes
 /nes-test-roms
+out
 *.swp
 *.swo

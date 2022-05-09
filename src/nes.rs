@@ -55,6 +55,10 @@ impl Nes {
     self.ppu.render_frame(&mut self.bus)
   }
 
+  pub fn get_frame(&self) -> &ppu::Frame{
+    self.ppu.get_frame()
+  }
+
   pub fn show_mem(&self) {
     //self.cpu.show_mem();
     println!("==============================");
@@ -69,7 +73,7 @@ impl Nes {
     if self.cpu_clock.tick() {
       if self.cpu.tick(&mut self.bus) {
         let (s_index, cycles) = self.ppu.get_cycles_info();
-        println!("\tPPU: {} {}\t{}", s_index, cycles
+        println!("\tPPU: {},{}\tCYC:{}", s_index, cycles
           , self.cpu.get_cycles_frame());
       }
     }
