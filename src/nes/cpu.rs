@@ -2,7 +2,7 @@ mod opcode;
 use std::fmt;
 
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory},
+  memory::{MemRead, MemWrite},
   bus::Bus,
   clock::Clock,
 };
@@ -176,7 +176,7 @@ pub struct CPU {
   instr: InstructionInfo,
   op_len: u16,
   as_jump: bool,
-  have_BCD: bool,
+  have_bcd: bool,
 }
 
 impl Clock for CPU {
@@ -206,7 +206,7 @@ impl CPU {
       instr: InstructionInfo::new(),
       op_len: 0,
       as_jump: false,
-      have_BCD: false,
+      have_bcd: false,
     }
   }
 
@@ -439,7 +439,7 @@ impl CPU {
 
   //Logical and arithmetic commands:
   fn ADC(&mut self, _bus: &mut Bus) {
-    if !self.have_BCD || self.reg.P.get_D() == false {
+    if !self.have_bcd || self.reg.P.get_D() == false {
       let carry: u8 = if self.reg.P.get_C() {1} else {0};
       let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
       let n_o: bool = if self.operand[0] & 0b1000_0000 != 0 {true} else {false};

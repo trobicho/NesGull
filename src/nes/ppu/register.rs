@@ -22,7 +22,6 @@ impl Register {
   }
 
   pub fn load_back_upper(&mut self, value: u8, pane: usize) {
-    let b = self.shift_back_16[pane];
     self.shift_back_16[pane] = (self.shift_back_16[pane] & 0b0000_0000_1111_1111)
       | (value as u16).wrapping_shl(8);
   }

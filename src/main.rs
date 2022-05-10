@@ -11,7 +11,7 @@ use nes::cartridge::Cartridge;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
-use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::render::{TextureCreator};
 use sdl2::rect::Rect;
 
 fn find_sdl_gl_driver() -> Option<u32> {
@@ -37,8 +37,8 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   let mut event_pump = sdl_context.event_pump()?;
 
-  //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
-  let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
+  let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
+  //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom));
   nes.reset();
@@ -80,7 +80,9 @@ fn main() -> Result<(), Box<dyn Error>>{
     frame_texture.update(frame_rect, frame.get_texture_buffer(), frame.width * 4)?;
     canvas.copy(&frame_texture, None, frame_rect)?;
     canvas.present();
-    nes.tick_scanline();
+    for _ in 0..=10 {
+      nes.tick_scanline();
+    }
     std::thread::sleep(Duration::from_millis(100));
   }
   Ok(())

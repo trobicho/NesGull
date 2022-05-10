@@ -10,13 +10,22 @@ use palette::{Palette, NesColor};
 use register::*;
 
 use std::error::Error;
-use rand::Rng;
 
 const FRAME_HEIGHT_NTSC: usize = 224;
 const FRAME_HEIGHT_PAL: usize = 240;
 const FRAME_WIDTH: usize = 256;
 const PATTERN_TABLE_ADDR: u16 = 0x0000;
 const NAMETABLE_ADDR: u16 = 0x2000;
+
+const PPUCTRL_CPU_ADDR: u16 = 0x2000;
+const PPUMASK_CPU_ADDR: u16 = 0x2001;
+const PPUSTATUS_CPU_ADDR: u16 = 0x2002;
+const OAMDDR_CPU_ADDR: u16 = 0x2003;
+const OAMDATA_CPU_ADDR: u16 = 0x2004;
+const PPUSCROLL_CPU_ADDR: u16 = 0x2005;
+const PPUADDR_CPU_ADDR: u16 = 0x2006;
+const PPUDATA_CPU_ADDR: u16 = 0x2007;
+const OAMDMA_CPU_ADDR: u16 = 0x4014;
 
 pub struct Frame {
   pub width: usize,
@@ -123,21 +132,29 @@ impl PPU {
 
     let r = bus.ppu_read(pattern_addr.into());
     self.reg.load_back_upper(r, 1);
-    self.reg.vram_cur += 1;
   }
 
   pub fn scanline_vblank(&mut self, bus: &mut Bus) {
       self.reg.vram_cur = PATTERN_TABLE_ADDR;
       self.reg.vram_temp = PATTERN_TABLE_ADDR;
+      if self.cycle_n == 1 {
+        bus.write(PPUSTATUS_CPU_ADDR.into(), 0b1000_0000);
+      }
   }
 
   pub fn scanline_prerender(&mut self, bus: &mut Bus) {
-    if self.cycle_n % 8 == 0 {
+    if self.cycle_n == 261 {
+      self.reg.vram_cur = 32 * self.scanline_n.wrapping_shr(3) as u16;
       self.feed_shift_back(bus);
+    }
+    else if self.cycle_n % 8 == 0 {
+      self.feed_shift_back(bus);
+      self.reg.vram_cur += 1;
     }
   }
 
   pub fn scanline_render(&mut self, bus: &mut Bus) {
+    bus.write(PPUSTATUS_CPU_ADDR.into(), 0b0000_0000);
     let mut color = self.palette.color[0];
     if self.reg.shift_back_16[0] & 0b1 == 1 {
       color = self.palette.color[27];

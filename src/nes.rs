@@ -14,8 +14,6 @@ use ppu::{PPU, PPUInfo};
 use cartridge::Cartridge;
 use clock::{Clock, SlaveClock};
 
-use sdl2::render::Canvas;
-
 pub struct Nes {
   cpu: CPU,
   ppu: PPU,
