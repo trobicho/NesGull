@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::Cartridge;
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
@@ -5,11 +7,18 @@ use crate::nes::{
 
 //const PRG_RAM_SIZE
 
+#[derive(Debug)]
 pub struct Nrom {
   prg_ram: Memory,
   prg_rom: Memory,
   chr_rom: Memory,
   //prg_rom_size: usize,
+}
+
+impl fmt::Display for Nrom {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
 }
 
 impl Nrom {
@@ -24,6 +33,12 @@ impl Nrom {
         },
         None => (Memory::new())
       }}
+    }
+  }
+
+  pub fn debug_print_vec(&mut self) {
+    for v in 0xfff0..=0xffff {
+      println!("{:#06x} = {:#04x}", v, self.prg_rom.read(v));
     }
   }
 }

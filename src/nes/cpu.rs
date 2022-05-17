@@ -177,6 +177,7 @@ pub struct CPU {
   op_len: u16,
   as_jump: bool,
   have_bcd: bool,
+  instr_op_load: bool,
 }
 
 impl Clock for CPU {
@@ -184,12 +185,22 @@ impl Clock for CPU {
     self.cycles_since_last_exec += 1;
     self.cycles_frame += 1;
     if self.cycles_since_last_exec >= self.cycles_instr{
-      self.debug_next_instr(bus);
+      //self.debug_next_instr(bus);
+      self.next_instr(bus);
       self.cycles_since_last_exec = 0;
       true
     } else {
       false
     }
+  }
+}
+
+impl CPU {
+  pub fn interrupt_tick(&mut self, bus: &mut Bus) {
+    self.cycles_since_last_exec += 1;
+    self.cycles_frame += 1;
+    self.cycles_instr += 2;
+    self.NMI(bus);
   }
 }
 
@@ -207,6 +218,7 @@ impl CPU {
       op_len: 0,
       as_jump: false,
       have_bcd: false,
+      instr_op_load: false,
     }
   }
 
@@ -221,10 +233,13 @@ impl CPU {
   pub fn reset(&mut self, bus: &mut Bus) {
     self.reg.reset();
     self.cycles_frame = 0;
-    self.cycles_instr = 7;
+    self.cycles_instr = 2;
     self.cycles_since_last_exec = 0;
 
     self.reg.PC = ((bus.read(0xFFFD) as u16) << 8) + bus.read(0xFFFC) as u16;
+    bus.write(0xFE, 0xFF);
+    bus.write(0xFF, 0xFF);
+    println!("PC : {:#04x}", self.reg.PC);
   }
 
   pub fn next_instr(&mut self, bus: &mut Bus) {
@@ -251,9 +266,9 @@ impl CPU {
   pub fn debug_reset(&mut self, bus: &mut Bus) {
     self.reg.reset();
     self.reset(bus);
+    self.cycles_instr = 7;
 
     self.reg.PC = 0xC000;
-    //println!("PC : {:#04x}", self.reg.PC);
   }
 
   pub fn debug_next_instr(&mut self, bus: &mut Bus) {
@@ -275,6 +290,14 @@ impl CPU {
     self.exec_instr(bus);
     if self.as_jump {
       //print!(" AS BRANCH to {:#04x}", self.reg.PC);
+    }
+    //println!("");
+  }
+
+  pub fn debug_print_stack(&mut self, bus: &mut Bus) {
+    for s in self.reg.S..=0xFF {
+      let addr: usize = (STACK_ADDR + s as u16).into();
+      println!("Stack{:04x}: {:#04x}", addr, bus.read(addr));
     }
   }
 }
@@ -337,6 +360,7 @@ impl CPU {
       Instruction::RTS => {self.RTS(bus)},
       //Interrupt commands:
       Instruction::RTI => {self.RTI(bus)},
+      Instruction::BRK => {self.BRK(bus)},
       //Flags commands:
       Instruction::CLC => {self.CLC(bus)},
       Instruction::SEC => {self.SEC(bus)},
@@ -359,29 +383,44 @@ impl CPU {
     }
   }
 
+  fn load_operand(&mut self, bus :&mut Bus) {
+    if !self.instr_op_load {
+      match self.instr.mode {
+        OpMode::ACC => {self.operand[0] = self.reg.A},
+        OpMode::ZP0 => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::ZPX => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::ZPY => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::IZX => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::IZY => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::ABS => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::ABX => {self.operand[0] = bus.read(self.addr_abs.into());},
+        OpMode::ABY => {self.operand[0] = bus.read(self.addr_abs.into());},
+        _ => (),
+      }
+    }
+    self.instr_op_load = true;
+  }
+
   fn handle_adressing_mode(&mut self, bus: &mut Bus) {
+    self.instr_op_load = false;
     match self.instr.mode {
       OpMode::ACC => {self.operand[0] = self.reg.A},
       OpMode::IMP => {},
       OpMode::IMM => {},
       OpMode::ZP0 => {
         self.addr_abs = self.operand[0].into();
-        self.operand[0] = bus.read(self.addr_abs.into());
       },
       OpMode::ZPX => {
         self.addr_abs = self.operand[0].wrapping_add(self.reg.X).into();
-        self.operand[0] = bus.read(self.addr_abs.into());
       },
       OpMode::ZPY => {
         self.addr_abs = self.operand[0].wrapping_add(self.reg.Y).into();
-        self.operand[0] = bus.read(self.addr_abs.into());
       },
       OpMode::IZX => {
         let ind: u8 = self.operand[0].wrapping_add(self.reg.X);
         let addr1 = bus.read(ind.into());
         let addr2 = bus.read(ind.wrapping_add(1).into());
         self.addr_abs = ((addr2 as u16) << 8) + addr1 as u16;
-        self.operand[0] = bus.read(self.addr_abs.into());
         //print!("IZX:{:#04x}={:#04x},{:#04x}={:#04x},{:#04x}", ind, addr1
           //, ind.wrapping_add(1), addr2, self.operand[0]);
       },
@@ -390,19 +429,16 @@ impl CPU {
         let addr1 = bus.read(ind.into());
         let addr2 = bus.read(ind.wrapping_add(1).into());
         self.addr_abs = (((addr2 as u16) << 8) + addr1 as u16).wrapping_add(self.reg.Y as u16);
-        self.operand[0] = bus.read(self.addr_abs.into());
         if self.instr.cycle_inc_pbc && self.addr_abs.wrapping_shr(8) != addr2 as u16 {
           self.cycles_instr += 1;
         }
       },
       OpMode::ABS => {
         self.addr_abs = ((self.operand[1] as u16) << 8) + self.operand[0] as u16;
-        self.operand[0] = bus.read(self.addr_abs.into());
       },
       OpMode::ABX => {
         self.addr_abs = (((self.operand[1] as u16) << 8) + self.operand[0] as u16)
           .wrapping_add(self.reg.X as u16);
-        self.operand[0] = bus.read(self.addr_abs.into());
         if self.instr.cycle_inc_pbc
             && self.addr_abs.wrapping_shr(8) != self.operand[1] as u16 {
           self.cycles_instr += 1;
@@ -411,7 +447,6 @@ impl CPU {
       OpMode::ABY => {
         self.addr_abs = (((self.operand[1] as u16) << 8) + self.operand[0] as u16)
           .wrapping_add(self.reg.Y as u16);
-        self.operand[0] = bus.read(self.addr_abs.into());
         if self.instr.cycle_inc_pbc
             && self.addr_abs.wrapping_shr(8) != self.operand[1] as u16 {
           self.cycles_instr += 1;
@@ -432,13 +467,15 @@ impl CPU {
           128..=255 => {-1 as i8 - ((255 - self.operand[0]) as i8) }
         };
         self.addr_abs = self.reg.PC.wrapping_add(offset as u16);
+        //print!(" {:#06x} {} {:#06x}", self.reg.PC, offset, self.addr_abs);
         self.addr_rel = offset;
       },
     }
   }
 
   //Logical and arithmetic commands:
-  fn ADC(&mut self, _bus: &mut Bus) {
+  fn ADC(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     if !self.have_bcd || self.reg.P.get_D() == false {
       let carry: u8 = if self.reg.P.get_C() {1} else {0};
       let n_a: bool = if self.reg.A & 0b1000_0000 != 0 {true} else {false};
@@ -456,37 +493,43 @@ impl CPU {
     }
   }
 
-  fn SBC(&mut self, _bus: &mut Bus) {
+  fn SBC(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.operand[0] = !self.operand[0];
-    self.ADC(_bus);
+    self.ADC(bus);
   }
 
-  fn BIT(&mut self, _bus: &mut Bus) {
+  fn BIT(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let r = self.reg.A & self.operand[0];
     self.reg.P.set_Z(if r == 0 {true} else {false});
     self.reg.P.set_V(if self.operand[0] & 0b0100_0000 != 0 {true} else {false});
     self.reg.P.set_N(if self.operand[0] & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn AND(&mut self, _bus: &mut Bus) {
+  fn AND(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.A &= self.operand[0];
     self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn ORA(&mut self, _bus: &mut Bus) {
+  fn ORA(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.A |= self.operand[0];
     self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn EOR(&mut self, _bus: &mut Bus) {
+  fn EOR(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.A ^= self.operand[0];
     self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn CMP(&mut self, _bus: &mut Bus) {
+  fn CMP(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.P.set_C(if self.reg.A >= self.operand[0] {true} else {false});
     self.reg.P.set_Z(if self.reg.A == self.operand[0] {true} else {false});
     self.reg.P.set_N(
@@ -499,7 +542,8 @@ impl CPU {
     );
   }
 
-  fn CPX(&mut self, _bus: &mut Bus) {
+  fn CPX(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.P.set_C(if self.reg.X >= self.operand[0] {true} else {false});
     self.reg.P.set_Z(if self.reg.X == self.operand[0] {true} else {false});
     self.reg.P.set_N(
@@ -512,7 +556,8 @@ impl CPU {
     );
   }
 
-  fn CPY(&mut self, _bus: &mut Bus) {
+  fn CPY(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.P.set_C(if self.reg.Y >= self.operand[0] {true} else {false});
     self.reg.P.set_Z(if self.reg.Y == self.operand[0] {true} else {false});
     self.reg.P.set_N(
@@ -526,6 +571,7 @@ impl CPU {
   }
 
   fn DEC(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r: u8 = self.operand[0];
     r = r.wrapping_sub(1);
     self.reg.P.set_Z(if r == 0 {true} else {false});
@@ -551,6 +597,7 @@ impl CPU {
   }
 
   fn INC(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r: u8 = self.operand[0];
     r = r.wrapping_add(1);
     self.reg.P.set_Z(if r == 0 {true} else {false});
@@ -576,6 +623,7 @@ impl CPU {
   }
 
   fn ASL(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r = self.operand[0];
     self.reg.P.set_C(if r & 0b1000_0000 != 0 {true} else {false});
     r = r.wrapping_shl(1);
@@ -589,6 +637,7 @@ impl CPU {
   }
 
   fn LSR(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r = self.operand[0];
     self.reg.P.set_C(if r & 0b0000_0001 != 0 {true} else {false});
     r = r.wrapping_shr(1);
@@ -602,6 +651,7 @@ impl CPU {
   }
 
   fn ROL(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r = self.operand[0];
     let carry = if self.reg.P.get_C() {true} else {false};
     self.reg.P.set_C(if r & 0b1000_0000 != 0 {true} else {false});
@@ -619,6 +669,7 @@ impl CPU {
   }
 
   fn ROR(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     let mut r = self.operand[0];
     let carry = if self.reg.P.get_C() {true} else {false};
     self.reg.P.set_C(if r & 0b0000_0001 != 0 {true} else {false});
@@ -636,19 +687,22 @@ impl CPU {
   }
 
   //Move commands:
-  fn LDA(&mut self, _bus: &mut Bus) {
+  fn LDA(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.A = self.operand[0];
     self.reg.P.set_Z(if self.reg.A == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.A & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn LDX(&mut self, _bus: &mut Bus) {
+  fn LDX(&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.X = self.operand[0];
     self.reg.P.set_Z(if self.reg.X == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.X & 0b1000_0000 != 0 {true} else {false});
   }
 
-  fn LDY (&mut self, _bus: &mut Bus) {
+  fn LDY (&mut self, bus: &mut Bus) {
+    self.load_operand(bus);
     self.reg.Y = self.operand[0];
     self.reg.P.set_Z(if self.reg.Y == 0 {true} else {false});
     self.reg.P.set_N(if self.reg.Y & 0b1000_0000 != 0 {true} else {false});
@@ -804,8 +858,22 @@ impl CPU {
 
   //Interrupt commands:
   fn BRK(&mut self, bus: &mut Bus) { // TODO
-    let addr = STACK_ADDR + self.reg.S as u16;
-    bus.write(addr.into(), self.reg.P.set_B(3));
+    let msb: u8 = (self.reg.PC.wrapping_shr(8)) as u8;
+    let lsb: u8 = (self.reg.PC & 0xFF) as u8;
+
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    self.reg.P.set_B(1);
+    bus.write(stack_addr.into(), msb);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(stack_addr.into(), lsb);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(stack_addr.into(), self.reg.P.value);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    self.reg.PC = (bus.read(0xFFFE) as u16) | (bus.read(0xFFFF) as u16).wrapping_shl(8);
   }
 
   fn IRQ(&mut self, bus: &mut Bus) { // TODO
@@ -814,11 +882,31 @@ impl CPU {
   }
 
   fn NMI(&mut self, bus: &mut Bus) { // TODO
-    let addr = STACK_ADDR + self.reg.S as u16;
-    bus.write(addr.into(), self.reg.P.set_B(2));
+    let msb: u8 = (self.reg.PC.wrapping_shr(8)) as u8;
+    let lsb: u8 = (self.reg.PC & 0xFF) as u8;
+
+    //println!(" NMI({:#06x}) {:#04x} ", self.reg.PC, self.reg.P.value);
+    //println!("BEFORE:");
+    //self.debug_print_stack(bus);
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    self.reg.P.set_B(2);
+    bus.write(stack_addr.into(), msb);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(stack_addr.into(), lsb);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+
+    let stack_addr = STACK_ADDR + self.reg.S as u16;
+    bus.write(stack_addr.into(), self.reg.P.value);
+    self.reg.S = self.reg.S.wrapping_sub(1);
+    //println!("AFTER:");
+    //self.debug_print_stack(bus);
+    self.reg.PC = (bus.read(0xFFFA) as u16) | (bus.read(0xFFFB) as u16).wrapping_shl(8);
   }
 
   fn RTI(&mut self, bus: &mut Bus) {
+    //self.debug_print_stack(bus);
     self.reg.S = self.reg.S.wrapping_add(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     self.reg.P.set_value(bus.read(stack_addr.into()));

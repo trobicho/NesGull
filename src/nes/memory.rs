@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub trait MemRead {
   fn read(&mut self, _addr: usize) -> u8 {
     0
@@ -10,9 +12,16 @@ pub trait MemWrite {
   }
 }
 
+#[derive(Debug)]
 pub struct Memory {
   data: Vec<u8>,
   writable: bool,
+}
+
+impl fmt::Display for Memory {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
 }
 
 impl Memory {
@@ -69,16 +78,23 @@ impl Memory {
 
 impl MemRead for Memory {
   fn read(&mut self, addr: usize) -> u8 {
-    let addr = addr % self.len();
-    self.data[addr]
+    if self.len() > 0 {
+      let addr = addr % self.len();
+      self.data[addr]
+    }
+    else {
+      0
+    }
   }
 }
 
 impl MemWrite for Memory {
   fn write(&mut self, addr: usize, value: u8) {
-    let addr = addr % self.len();
-    if self.writable {
-      self.data[addr] = value;
+    if self.len() > 0 {
+      let addr = addr % self.len();
+      if self.writable {
+        self.data[addr] = value;
+      }
     }
   }
 }

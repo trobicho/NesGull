@@ -6,13 +6,26 @@ mod mapper;
 pub mod cartridge;
 mod clock;
 
-
 use std::error::Error;
 use bus::Bus;
 use cpu::CPU;
 use ppu::{PPU, PPUInfo};
 use cartridge::Cartridge;
 use clock::{Clock, SlaveClock};
+
+#[allow(non_camel_case_types)]
+pub enum DebugEvent {
+  SHOW_PPU_REG,
+  SHOW_PPU_OAM,
+  SHOW_PPU_VRAM,
+  SHOW_CPU_WRAM,
+  SHOW_CPU_MAP_REG,
+  SHOW_MAPPER,
+}
+
+pub struct DebugFlag {
+  show_instr: bool,
+}
 
 pub struct Nes {
   cpu: CPU,
@@ -21,6 +34,10 @@ pub struct Nes {
   cpu_clock: SlaveClock,
   ppu_clock: SlaveClock,
   cartridge: Cartridge,
+
+  cpu_nmi: bool,
+  debug_no_nmi: bool,
+  breakpoint: bool,
 }
 
 impl Nes {
@@ -29,9 +46,13 @@ impl Nes {
       cpu: CPU::new(),
       ppu: PPU::new(),
       bus: Bus::new(&cartridge),
-      cpu_clock: SlaveClock::new(12),
-      ppu_clock: SlaveClock::new(4),
+      cpu_clock: SlaveClock::new(3),
+      ppu_clock: SlaveClock::new(1),
       cartridge,
+
+      cpu_nmi: false,
+      debug_no_nmi: false,
+      breakpoint: false,
     }
   }
 
@@ -47,33 +68,42 @@ impl Nes {
   pub fn reset(&mut self) {
     self.cpu.reset(&mut self.bus);
     self.ppu.reset();
-  }
-
-  pub fn render_frame(&mut self) -> &ppu::Frame{
-    self.ppu.render_frame(&mut self.bus)
+    self.bus.mapper.debug_print_vec();
   }
 
   pub fn get_frame(&self) -> &ppu::Frame{
     self.ppu.get_frame()
   }
 
-  pub fn show_mem(&self) {
-    //self.cpu.show_mem();
-    println!("==============================");
-    //self.ppu.show_mem();
+  pub fn get_debug_frame(&mut self) -> &ppu::Frame{
+    self.ppu.debug_show_nametable(&mut self.bus)
   }
 
   pub fn tick(&mut self) -> bool{
     let mut b = false;
+
+    self.breakpoint = false;
     if self.ppu_clock.tick() {
       b = self.ppu.tick(&mut self.bus);
+      if self.ppu.get_nmi_flag() {
+        if (self.debug_no_nmi == false) {
+          self.cpu_nmi = true;
+          self.breakpoint = true;
+        }
+      }
     }
 
     if self.cpu_clock.tick() {
-      if self.cpu.tick(&mut self.bus) {
-        let (s_index, cycles) = self.ppu.get_cycles_info();
-        println!("\tPPU: {},{}\tCYC:{}", s_index, cycles
-          , self.cpu.get_cycles_frame());
+      if self.cpu_nmi {
+        self.cpu.interrupt_tick(&mut self.bus);
+        self.cpu_nmi = false;
+      }
+      else {
+        if self.cpu.tick(&mut self.bus) {
+          let (s_index, cycles) = self.ppu.get_cycles_info();
+          //println!("\tPPU: {},{}\tCYC:{}", s_index, cycles, self.cpu.get_cycles_frame());
+          //self.bus.print_ppu_reg();
+        }
       }
     }
     b
@@ -87,7 +117,25 @@ impl Nes {
 
   pub fn tick_scanline(&mut self) {
     loop {
-      if self.tick() {
+      if self.tick(){
+        break;
+      }
+    }
+  }
+
+  pub fn tick_scanline_n(&mut self, t: u32) {
+    for _t in 0..t {
+      self.tick_scanline();
+    }
+  }
+
+  pub fn tick_frame(&mut self) {
+    loop {
+      if self.tick() && self.ppu.get_frame_status() {
+        break;
+      }
+      if self.breakpoint {
+        self.breakpoint = false;
         break;
       }
     }
@@ -102,5 +150,18 @@ impl Nes {
 
   pub fn ppu_rendering_info(&self) -> PPUInfo {
     self.ppu.render_info()
+  }
+}
+
+impl Nes {
+  pub fn debug_event(&self, event: DebugEvent) {
+    match event {
+      DebugEvent::SHOW_CPU_WRAM => {println!("{}", self.bus.wram);},
+      DebugEvent::SHOW_CPU_MAP_REG=> {println!("{}", self.bus.cpu_mapped_reg);},
+      DebugEvent::SHOW_PPU_REG => {self.bus.print_ppu_mem();},
+      DebugEvent::SHOW_PPU_VRAM => {;},
+      DebugEvent::SHOW_PPU_OAM=> {;},
+      DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
+    }
   }
 }
