@@ -184,23 +184,31 @@ impl Clock for CPU {
   fn tick(&mut self, bus: &mut Bus) -> bool{
     self.cycles_since_last_exec += 1;
     self.cycles_frame += 1;
-    if self.cycles_since_last_exec >= self.cycles_instr{
-      //self.debug_next_instr(bus);
-      self.next_instr(bus);
-      self.cycles_since_last_exec = 0;
+    //if bus.get_oam_dma_state() {
+      //print!("-");
+    //}
+    if self.cycles_since_last_exec >= self.cycles_instr {
+      if (bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0) {
+        bus.ppu_mem.nmi();
+        self.cycles_instr += 2;
+        self.NMI(bus);
+      }
+      else if bus.get_oam_dma_state() {
+        if self.cycles_frame % 1 == 0 {
+          bus.oam_dma_tick();
+          self.cycles_since_last_exec = 0;
+          self.cycles_instr = 2;
+        }
+      }
+      else {
+        //self.debug_next_instr(bus);
+        self.next_instr(bus);
+        self.cycles_since_last_exec = 0;
+      }
       true
     } else {
       false
     }
-  }
-}
-
-impl CPU {
-  pub fn interrupt_tick(&mut self, bus: &mut Bus) {
-    self.cycles_since_last_exec += 1;
-    self.cycles_frame += 1;
-    self.cycles_instr += 2;
-    self.NMI(bus);
   }
 }
 
@@ -253,12 +261,12 @@ impl CPU {
     self.instr = opcode::opcode_to_enum(opcode);
     self.op_len = operand_lenght(&self.instr);
     if self.op_len >= 1 {
-      self.operand[0] = bus.read((self.reg.PC + 1).into());
+      self.operand[0] = bus.read((self.reg.PC.wrapping_add(1)).into());
     }
     if self.op_len == 2 {
-      self.operand[1] = bus.read((self.reg.PC + 2).into());
+      self.operand[1] = bus.read((self.reg.PC.wrapping_add(2)).into());
     }
-    self.reg.PC += self.op_len + 1;
+    self.reg.PC = self.reg.PC.wrapping_add(self.op_len + 1);
   }
 }
 

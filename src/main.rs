@@ -41,12 +41,15 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   let args: Vec<String> = env::args().collect();
   println!("{:?}", args);
-  //let nes_rom = rom::nes_rom_load("./roms/Bomberman (USA).nes")?;
-  let mut nes_rom = rom::nes_rom_load("./roms/Donkey Kong (U) (PRG1) [!p].nes")?;
+  let mut nes_rom: Vec<u8> = vec![0];
   if args.len() > 1 {
     nes_rom = rom::nes_rom_load(&args[1])?;
     println!("rom loaded: {}", &args[1]);
   }
+  else {
+    nes_rom = rom::nes_rom_load("./roms/Donkey Kong (U) (PRG1) [!p].nes")?;
+  }
+
   //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong Classics (USA, Europe).nes")?;
   //let nes_rom = rom::nes_rom_load("./roms/Donkey Kong (Japan).nes")?;
   //let nes_rom = rom::nes_rom_load("./roms/Mega Man (USA).nes")?;
@@ -120,14 +123,15 @@ fn main() -> Result<(), Box<dyn Error>>{
     canvas.copy(&frame_texture, None, None)?;
     canvas.present();
     if run {
-      nes.tick_frame();
-      frame_nb += 1;
+      for _ in 0..10 {
+        nes.tick_frame();
+      }
+      frame_nb += 10;
       println!("frame: {}", frame_nb);
     }
     //for _ in 0..=10 {
       //nes.tick_scanline();
     //}
-    std::thread::sleep(Duration::from_millis(10));
   }
   Ok(())
 }

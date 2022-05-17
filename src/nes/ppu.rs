@@ -95,10 +95,6 @@ impl Clock for PPU {
         self.cycle_n += 1;
       }
     }
-    if (bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0) {
-      self.nmi_flag = true;
-      bus.ppu_mem.nmi();
-    }
     r
   }
 }
@@ -178,6 +174,9 @@ impl PPU {
     if self.cycle_n % 2 == 0 && self.cycle_n >= 64 && self.cycle_n <= 256 {
       self.oam_write_secondary(bus);
     }
+    if self.cycle_n >= 257 && self.cycle_n <= 320 {
+      bus.ppu_mem.oam_addr = 0x0;
+    }
   }
 
   fn scanline_fetch(&mut self, bus: &mut Bus) {
@@ -224,7 +223,8 @@ impl PPU {
     let mut color_index: u16 = 0;
     let mut priority = false;
 
-    for i in 0..self.reg.counter_sprite.len() {
+    let mut i = 0;
+    while i < 8 {
       if (self.reg.counter_sprite[i] == 0) {
         color_index = ((self.reg.shift_sprite_low[i] & 1) | ((self.reg.shift_sprite_high[i] & 1) << 1)).into();
         if color_index != 0 {
@@ -234,7 +234,11 @@ impl PPU {
         }
         self.reg.shift_sprite_low[i] >>= 1;
         self.reg.shift_sprite_high[i] >>= 1;
+        if (self.reg.shift_sprite_low[i] == 0 && self.reg.shift_sprite_high[i] == 0) { //FIXME
+          self.reg.counter_sprite[i] = 0xFF;
+        }
       }
+      i += 1;
     }
     *color = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
     priority
@@ -245,10 +249,10 @@ impl PPU {
     let mut sp_color = self.palette.color[0];
     let mut priority = false;
 
-    if bus.ppu_mem.read_mask() & 0b0001_0000 != 0 {
+    if bus.ppu_mem.read_mask() & 0b0000_1000 != 0 {
       bg_color = self.bg_color(bus);
     }
-    if bus.ppu_mem.read_mask() & 0b0000_1000 != 0 {
+    if bus.ppu_mem.read_mask() & 0b0001_0000 != 0 {
       priority = self.sprite_color(bus, &mut sp_color);
     }
     if (priority) {
@@ -320,8 +324,8 @@ impl PPU {
   }
 
   fn sprite_y_in_range(&self, bus: &mut Bus, sprite_y: u32) -> bool{
-    let max = if (bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0) {16} else {8};
-    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + max {
+    //let max = if (bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0) {16} else {8};
+    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + 8{
       true
     } else {
       false
@@ -333,7 +337,7 @@ impl PPU {
       let sprite_y = bus.ppu_mem.oam_read(self.cur_oam, self.oam_offset);
 
       if !self.sprite_overflow && self.sprite_y_in_range(bus, sprite_y.into()) {
-        self.sprite_overflow = self.reg.oam_add(Oam{
+        self.sprite_overflow = !self.reg.oam_add(Oam{
           y: sprite_y, 
           tile: bus.ppu_mem.oam_read(self.cur_oam, 1),
           attr: bus.ppu_mem.oam_read(self.cur_oam, 2),
@@ -359,10 +363,9 @@ impl PPU {
       let oam = self.reg.oam_secondary[i];
       if (oam.y != 0xFF) {
         let mut addr: usize = ((oam.tile as u16) << 4) as usize;
-        if ctrl & 0b0010_0000 != 0 && ctrl & 0b0000_1000 != 0 {
+        if ctrl & 0b0010_0000 == 0 && ctrl & 0b0000_1000 != 0 {
           addr += 0x1000;
         }
-        addr += (self.scanline_n as usize) - (oam.y as usize);
         if oam.attr & 0b1000_0000 != 0 {
           addr += 7 - ((self.scanline_n as usize) - (oam.y as usize));
         }
@@ -494,9 +497,9 @@ impl PPU {
   pub fn debug_show_nametable(&mut self, bus: &mut Bus) -> &Frame {
     //self.frame.clear();
     self.debug_draw_nametable(bus, 0x2000, 0, 0);
-    //self.debug_draw_nametable(bus, 0x2400, 35, 0);
-    //self.debug_draw_nametable(bus, 0x2800, 0, 35);
-    //self.debug_draw_nametable(bus, 0x2C00, 35, 35);
+    self.debug_draw_nametable(bus, 0x2400, 35, 0);
+    self.debug_draw_nametable(bus, 0x2800, 0, 35);
+    self.debug_draw_nametable(bus, 0x2C00, 35, 35);
     &self.frame
   }
 

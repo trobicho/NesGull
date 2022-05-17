@@ -85,25 +85,13 @@ impl Nes {
     self.breakpoint = false;
     if self.ppu_clock.tick() {
       b = self.ppu.tick(&mut self.bus);
-      if self.ppu.get_nmi_flag() {
-        if (self.debug_no_nmi == false) {
-          self.cpu_nmi = true;
-          self.breakpoint = true;
-        }
-      }
     }
 
     if self.cpu_clock.tick() {
-      if self.cpu_nmi {
-        self.cpu.interrupt_tick(&mut self.bus);
-        self.cpu_nmi = false;
-      }
-      else {
-        if self.cpu.tick(&mut self.bus) {
-          let (s_index, cycles) = self.ppu.get_cycles_info();
-          //println!("\tPPU: {},{}\tCYC:{}", s_index, cycles, self.cpu.get_cycles_frame());
-          //self.bus.print_ppu_reg();
-        }
+      if self.cpu.tick(&mut self.bus) {
+        let (s_index, cycles) = self.ppu.get_cycles_info();
+        //println!("\tPPU: {},{}\tCYC:{}", s_index, cycles, self.cpu.get_cycles_frame());
+        //self.bus.print_ppu_reg();
       }
     }
     b

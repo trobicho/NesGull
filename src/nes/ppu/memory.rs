@@ -14,7 +14,7 @@ const OAMDATA_CPU_ADDR: u16 = 0x2004;
 const PPUSCROLL_CPU_ADDR: u16 = 0x2005;
 const PPUADDR_CPU_ADDR: u16 = 0x2006;
 const PPUDATA_CPU_ADDR: u16 = 0x2007;
-const OAMDMA_CPU_ADDR: u16 = 0x4014;
+pub const OAMDMA_CPU_ADDR: u16 = 0x4014;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Oam {
@@ -46,7 +46,7 @@ pub struct PPUMemory {
   w: bool, 
   open_bus: u8,
 
-  oam_addr: u8,
+  pub oam_addr: u8,
   oam_dma: u8,
 
   vram: Memory,
@@ -129,6 +129,11 @@ impl PPUMemory {
   pub fn get_nmi_output(&mut self) -> bool{
     self.nmi_output
   }
+
+  pub fn oam_dma_write(&mut self, value: u8) {
+    self.oam.write(self.oam_addr.into(), value);
+    self.oam_addr = self.oam_addr.wrapping_add(1);
+  }
 }
 
 impl MemRead  for PPUMemory {
@@ -171,7 +176,7 @@ impl MemWrite for PPUMemory {
       }
       PPUMASK_CPU_ADDR => self.mask = value,
       OAMADDR_CPU_ADDR => self.oam_addr = value,
-      OAMDATA_CPU_ADDR => self.oam.write(self.oam_addr.into(), value),
+      OAMDATA_CPU_ADDR => {self.oam.write(self.oam_addr.into(), value); self.oam_addr.wrapping_add(1);},
       PPUSCROLL_CPU_ADDR => {
         if self.w {
           self.t = (self.t & 0b0000_1100_0001_1111)
@@ -207,7 +212,6 @@ impl MemWrite for PPUMemory {
           self.v += 1;
         }
       }
-      OAMDMA_CPU_ADDR => self.oam_dma = value,
       _ => (),
     }
     //println!("{}", self);
@@ -236,6 +240,14 @@ impl PPUMemory {
       0x3F00..=0x3FFF => self.palette.write(addr & 0xFF, value),
       _ => (),
     }
+  }
+
+  pub fn print_oam(&mut self) {
+    print!("OAM: ");
+    for v in 0..self.oam.len() {
+      print!("{:#04x},", self.oam.read(v));
+    }
+    println!("");
   }
 }
 
