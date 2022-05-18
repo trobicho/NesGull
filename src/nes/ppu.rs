@@ -216,7 +216,13 @@ impl PPU {
       color_index += ((((self.reg.shift_back_8[0] >> (quadrant << 1)) & 3) << 2) as u16);
       //println!("quadrant = {} {:#4x} {} {}", quadrant, color_index, (self.reg.shift_back_8[0] >> (quadrant << 1)) & 3, (self.reg.shift_back_16[0] & 1) | ((self.reg.shift_back_16[1] & 1) << 1));
     }
-    self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize]
+    let mut color = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
+    //let mut quadrant: u16 = (bus.ppu_mem.v & 1) | ((bus.ppu_mem.v & 0b0000_0000_0010_0000) >> 4);
+    //if quadrant == 3 {quadrant = 0;}
+    //color_index = quadrant;
+    //let color2 = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
+    //color = color.mix(color2, 0.1); 
+    color
   }
 
   fn sprite_color(&mut self, bus: &mut Bus, color: &mut NesColor) -> bool{

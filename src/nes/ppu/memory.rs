@@ -72,7 +72,7 @@ impl PPUMemory {
       oam_dma: 0,
       vram: Memory::ram(0x1000),
       oam: Memory::ram(256),
-      palette: Memory::ram(0x1F),
+      palette: Memory::ram(0x20),
       nmi_output: true,
     }
   }
@@ -228,15 +228,23 @@ impl PPUMemory {
     match addr {
       0x2000..=0x2FFF => self.vram.read(addr - 0x2000),
       0x3000..=0x3EFF => self.vram.read(addr - 0x3000),
+      0x3F10 => self.palette.read(0x00),
+      0x3F14 => self.palette.read(0x04),
+      0x3F18 => self.palette.read(0x08),
+      0x3F1C => self.palette.read(0x0C),
       0x3F00..=0x3FFF => self.palette.read(addr & 0xFF),
       _ => 0,
     }
-  }
+ }
 
-  pub fn ppu_write(&mut self, addr: usize, value: u8) {
+ pub fn ppu_write(&mut self, addr: usize, value: u8) {
     match addr {
       0x2000..=0x2FFF => self.vram.write(addr - 0x2000, value),
       0x3000..=0x3EFF => self.vram.write(addr - 0x3000, value),
+      0x3F10 => self.palette.write(0x00, value),
+      0x3F14 => self.palette.write(0x04, value),
+      0x3F18 => self.palette.write(0x08, value),
+      0x3F1C => self.palette.write(0x0C, value),
       0x3F00..=0x3FFF => self.palette.write(addr & 0xFF, value),
       _ => (),
     }
@@ -248,6 +256,13 @@ impl PPUMemory {
       print!("{:#04x},", self.oam.read(v));
     }
     println!("");
+  }
+
+  pub fn print_palette(&mut self) {
+    println!("Palette: ");
+    for v in 0..self.palette.len() {
+      println!("{:#04x},", self.palette.read(v));
+    }
   }
 }
 

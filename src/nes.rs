@@ -4,6 +4,7 @@ mod memory;
 mod bus;
 mod mapper;
 pub mod cartridge;
+pub mod controller;
 mod clock;
 
 use std::error::Error;
@@ -12,12 +13,14 @@ use cpu::CPU;
 use ppu::{PPU, PPUInfo};
 use cartridge::Cartridge;
 use clock::{Clock, SlaveClock};
+use controller::Controller;
 
 #[allow(non_camel_case_types)]
 pub enum DebugEvent {
   SHOW_PPU_REG,
   SHOW_PPU_OAM,
   SHOW_PPU_VRAM,
+  SHOW_PPU_PALETTE,
   SHOW_CPU_WRAM,
   SHOW_CPU_MAP_REG,
   SHOW_MAPPER,
@@ -41,11 +44,11 @@ pub struct Nes {
 }
 
 impl Nes {
-  pub fn new(cartridge: Cartridge) -> Self {
+  pub fn new(cartridge: Cartridge, controller: Box<dyn Controller>) -> Self {
     Self {
       cpu: CPU::new(),
       ppu: PPU::new(),
-      bus: Bus::new(&cartridge),
+      bus: Bus::new(&cartridge, controller),
       cpu_clock: SlaveClock::new(3),
       ppu_clock: SlaveClock::new(1),
       cartridge,
@@ -120,6 +123,8 @@ impl Nes {
   pub fn tick_frame(&mut self) {
     loop {
       if self.tick() && self.ppu.get_frame_status() {
+        self.bus.input.update();
+        self.bus.input.debug_print();
         break;
       }
       if self.breakpoint {
@@ -142,13 +147,14 @@ impl Nes {
 }
 
 impl Nes {
-  pub fn debug_event(&self, event: DebugEvent) {
+  pub fn debug_event(&mut self, event: DebugEvent) {
     match event {
       DebugEvent::SHOW_CPU_WRAM => {println!("{}", self.bus.wram);},
       DebugEvent::SHOW_CPU_MAP_REG=> {println!("{}", self.bus.cpu_mapped_reg);},
       DebugEvent::SHOW_PPU_REG => {self.bus.print_ppu_mem();},
       DebugEvent::SHOW_PPU_VRAM => {;},
       DebugEvent::SHOW_PPU_OAM=> {;},
+      DebugEvent::SHOW_PPU_PALETTE => {self.bus.ppu_mem.print_palette();},
       DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
     }
   }

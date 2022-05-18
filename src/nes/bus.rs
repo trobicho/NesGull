@@ -3,6 +3,7 @@ use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
   mapper::{m000_nrom},
   ppu::memory::{PPUMemory, OAMDMA_CPU_ADDR},
+  controller::{Controller},
 };
 
 pub struct Bus {
@@ -11,6 +12,7 @@ pub struct Bus {
   pub ppu_mem: PPUMemory,
   pub(super) cpu_mapped_reg: Memory,
   oam_dma: (bool, u8, u8),
+  pub(super) input: Box<dyn Controller>,
   //ppu: PPU,
   //apu: APU,
   //input: Input,
@@ -18,13 +20,14 @@ pub struct Bus {
 }
 
 impl Bus {
-  pub fn new(cartridge: &Cartridge) -> Self {
+  pub fn new(cartridge: &Cartridge,  input: Box<dyn Controller>) -> Self {
     Self {
       wram: Memory::ram(0x0800),
       ppu_mem: PPUMemory::new(),
       cpu_mapped_reg: Memory::ram(0x2F),
       mapper: m000_nrom::Nrom::load(cartridge),
       oam_dma: (false, 0, 0),
+      input,
     }
   }
 
@@ -64,6 +67,7 @@ impl MemRead for Bus {
     match addr {
       0x0000..=0x0800 => self.wram.read(addr),
       (0x2000..=0x2007) | 0x4014 => self.ppu_mem.read(addr),
+      0x4016 | 0x4017 => self.input.read(addr),
       0x4000..=0x401F => self.cpu_mapped_reg.read(addr),
       0x4020..=0xFFFF => self.mapper.read(addr),
       _ => 0,
@@ -77,7 +81,8 @@ impl MemWrite for Bus {
     match addr16 {
       0x0000..=0x0800 => self.wram.write(addr, value),
       OAMDMA_CPU_ADDR => {self.oam_dma = (true, value, 0x00)},
-      (0x2000..=0x2007) => self.ppu_mem.write(addr, value),
+      0x2000..=0x2007 => self.ppu_mem.write(addr, value),
+      0x4016 | 0x4017 => self.input.write(addr, value),
       0x4000..=0x401F => self.cpu_mapped_reg.write(addr, value),
       0x4020..=0xFFFF => self.mapper.write(addr, value),
       _ => (),

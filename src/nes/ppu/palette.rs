@@ -9,6 +9,16 @@ pub struct NesColor {
   pub B: u8,
 }
 
+impl NesColor {
+  pub fn mix(&self, color: Self, scalar: f32) -> Self{
+    Self {
+      R: (((self.R as f32) * (1.0 - scalar)) as u8).saturating_add(((color.R as f32) * scalar) as u8),
+      G: (((self.G as f32) * (1.0 - scalar)) as u8).saturating_add(((color.G as f32) * scalar) as u8),
+      B: (((self.B as f32) * (1.0 - scalar)) as u8).saturating_add(((color.B as f32) * scalar) as u8),
+    }
+  }
+}
+
 pub struct Palette {
   pub color: [NesColor; 64],
 }
