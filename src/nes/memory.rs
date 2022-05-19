@@ -1,18 +1,21 @@
 use std::fmt;
+use enum_dispatch::enum_dispatch;
 
+#[enum_dispatch(MapperType)]
 pub trait MemRead {
   fn read(&mut self, _addr: usize) -> u8 {
     0
   }
 }
 
+#[enum_dispatch(MapperType)]
 pub trait MemWrite {
   fn write(&mut self, _addr: usize, _value: u8) {
     ()
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Memory {
   data: Vec<u8>,
   writable: bool,

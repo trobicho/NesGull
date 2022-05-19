@@ -1,14 +1,14 @@
 use crate::Cartridge;
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
-  mapper::{m000_nrom},
+  mapper::{self, Mapper, MapperType},
   ppu::memory::{PPUMemory, OAMDMA_CPU_ADDR},
   controller::{Controller},
 };
 
 pub struct Bus {
   pub(super) wram: Memory,
-  pub(super) mapper: m000_nrom::Nrom,
+  pub(super) mapper: Box<MapperType>,
   pub ppu_mem: PPUMemory,
   pub(super) cpu_mapped_reg: Memory,
   oam_dma: (bool, u8, u8),
@@ -20,19 +20,20 @@ pub struct Bus {
 }
 
 impl Bus {
-  pub fn new(cartridge: &Cartridge,  input: Box<dyn Controller>) -> Self {
+  pub fn new(input: Box<dyn Controller>) -> Self {
     Self {
       wram: Memory::ram(0x0800),
       ppu_mem: PPUMemory::new(),
       cpu_mapped_reg: Memory::ram(0x2F),
-      mapper: m000_nrom::Nrom::load(cartridge),
+      mapper: Box::new(mapper::null()),
       oam_dma: (false, 0, 0),
       input,
     }
   }
 
-  pub fn mapper_load(&mut self, mapper: m000_nrom::Nrom) {
-    self.mapper = mapper;
+  pub fn load_mapper(&mut self, mapper: MapperType) {
+    self.mapper = Box::new(mapper);
+    self.ppu_mem.set_mirroring(self.mapper.mirroring());
   }
 
   pub fn print_wram(&self) {

@@ -178,6 +178,7 @@ pub struct CPU {
   as_jump: bool,
   have_bcd: bool,
   instr_op_load: bool,
+  pub debug: bool,
 }
 
 impl Clock for CPU {
@@ -201,8 +202,12 @@ impl Clock for CPU {
         }
       }
       else {
-        //self.debug_next_instr(bus);
-        self.next_instr(bus);
+        if self.debug {
+          self.debug_next_instr(bus);
+        }
+        else {
+          self.next_instr(bus);
+        }
         self.cycles_since_last_exec = 0;
       }
       true
@@ -227,6 +232,7 @@ impl CPU {
       as_jump: false,
       have_bcd: false,
       instr_op_load: false,
+      debug: false,
     }
   }
 
@@ -254,6 +260,10 @@ impl CPU {
     self.cycles_instr = 0;
     self.read_instr(bus);
     self.exec_instr(bus);
+  }
+
+  pub fn set_debug(&mut self, debug: bool) {
+    self.debug = debug;
   }
 
   fn read_instr(&mut self, bus: &mut Bus) {

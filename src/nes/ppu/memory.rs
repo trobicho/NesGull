@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::nes::{
   memory::{Memory, MemRead, MemWrite},
+  mapper::{MirroringType},
 };
 
 const NAMETABLE_ADDR: u16 = 0x2000;
@@ -54,6 +55,7 @@ pub struct PPUMemory {
   palette: Memory,
 
   nmi_output: bool,
+  mirroring_type: MirroringType,
 }
 
 impl PPUMemory {
@@ -74,6 +76,7 @@ impl PPUMemory {
       oam: Memory::ram(256),
       palette: Memory::ram(0x20),
       nmi_output: true,
+      mirroring_type: MirroringType::Horizontal,
     }
   }
 }
@@ -95,10 +98,6 @@ impl PPUMemory {
 
   pub fn read_status(&mut self) -> u8 { //Debug
     self.status
-  }
-
-  pub fn write_status(&mut self, value: u8) {
-    self.status = value;
   }
 
   pub fn nmi(&mut self) {
@@ -134,6 +133,28 @@ impl PPUMemory {
     self.oam.write(self.oam_addr.into(), value);
     self.oam_addr = self.oam_addr.wrapping_add(1);
   }
+
+  pub fn set_mirroring(&mut self, mirroring_type: MirroringType) {
+    self.mirroring_type = mirroring_type;
+    println!("{}", self.mirroring_type);
+  }
+
+  fn mirroring(&self, addr: usize) -> usize {
+    let mut addr = addr;
+    match addr {
+      0x2000..=0x2FFF => {addr -= 0x2000;},
+      0x3000..=0x3EFF => {addr -= 0x3000;},
+      _ => {return addr;},
+    }
+    match self.mirroring_type {
+      MirroringType::Vertical => {addr %= 0x800;},
+      MirroringType::Horizontal => if (addr >= 0x400 && addr < 0x800) || addr >= 0xC00 {addr -= 0x400},
+      MirroringType::FourScreen => (),
+      MirroringType::SingleScreenA => {addr %= 0x400;},
+      MirroringType::SingleScreenB => {addr %= 0x400; addr |= 0x400},
+    }
+    addr
+  }
 }
 
 impl MemRead  for PPUMemory {
@@ -151,7 +172,7 @@ impl MemRead  for PPUMemory {
         self.oam.read(self.oam_addr.into())
       }
       PPUDATA_CPU_ADDR => {
-        let value = self.vram.read(self.v.into());
+        let value = self.vram.read(self.mirroring(self.v.into()));
         if self.ctrl & 0b0000_0010 != 0 {
           self.v += 32;
         }
@@ -214,6 +235,7 @@ impl MemWrite for PPUMemory {
       }
       _ => (),
     }
+    self.status |= (value & 0b0001_1111)
     //println!("{}", self);
   }
 }
@@ -226,8 +248,8 @@ impl PPUMemory {
 
   pub fn ppu_read(&mut self, addr: usize) -> u8 {
     match addr {
-      0x2000..=0x2FFF => self.vram.read(addr - 0x2000),
-      0x3000..=0x3EFF => self.vram.read(addr - 0x3000),
+      0x2000..=0x2FFF => self.vram.read(self.mirroring(addr)),
+      0x3000..=0x3EFF => self.vram.read(self.mirroring(addr)),
       0x3F10 => self.palette.read(0x00),
       0x3F14 => self.palette.read(0x04),
       0x3F18 => self.palette.read(0x08),
@@ -239,8 +261,8 @@ impl PPUMemory {
 
  pub fn ppu_write(&mut self, addr: usize, value: u8) {
     match addr {
-      0x2000..=0x2FFF => self.vram.write(addr - 0x2000, value),
-      0x3000..=0x3EFF => self.vram.write(addr - 0x3000, value),
+      0x2000..=0x2FFF => self.vram.write(self.mirroring(addr), value),
+      0x3000..=0x3EFF => self.vram.write(self.mirroring(addr), value),
       0x3F10 => self.palette.write(0x00, value),
       0x3F14 => self.palette.write(0x04, value),
       0x3F18 => self.palette.write(0x08, value),

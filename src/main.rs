@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/scanline/scanline.nes")?;
   //let nes_rom = rom::nes_rom_load("././nes-test-roms/nmi_sync/demo_ntsc.nes")?;
-  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller));
+  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller))?;
   nes.reset();
   //nes.debug_reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
@@ -121,6 +121,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut running = true;
   let mut run = false;
   let mut show_nametable = false;
+  let mut cpu_debug = false;
   let mut frame_nb = 0;
   let mut time = Instant::now();
   let mut last_time = time;
@@ -160,6 +161,10 @@ fn main() -> Result<(), Box<dyn Error>>{
         },
         Event::KeyDown {keycode: Some(Keycode::N), ..} => {
           show_nametable = !show_nametable;
+        },
+        Event::KeyDown {keycode: Some(Keycode::D), ..} => {
+          cpu_debug = !cpu_debug;
+          nes.set_cpu_debug(cpu_debug);
         },
         _ => {},
       }

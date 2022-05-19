@@ -77,6 +77,8 @@ pub struct PPU {
   cur_oam: usize,
   sprite_overflow: bool,
   oam_offset: usize,
+  has_sprite0: bool,
+  has_sprite0_next: bool,
 }
 
 impl Clock for PPU {
@@ -116,6 +118,8 @@ impl PPU {
       cur_oam: 0,
       sprite_overflow: false,
       oam_offset: 0,
+      has_sprite0: false,
+      has_sprite0_next: false,
     }
   }
 
@@ -158,6 +162,7 @@ impl PPU {
       self.frame_finish = true;
       self.frame_n += 1;
       bus.ppu_mem.set_interupt(false);
+      bus.ppu_mem.set_sprite_0hit(false);
     }
     if bus.ppu_mem.read_mask() & 0b0000_1000 != 0 {
       if self.cycle_n >= 280  && self.cycle_n <= 304 {
@@ -170,12 +175,16 @@ impl PPU {
   fn oam_handle(&mut self, bus: &mut Bus) {
     if self.cycle_n == 1 {
       self.oam_clear();
+      self.has_sprite0 = self.has_sprite0_next;
+      self.has_sprite0_next = false;
     }
-    if self.cycle_n % 2 == 0 && self.cycle_n >= 64 && self.cycle_n <= 256 {
-      self.oam_write_secondary(bus);
-    }
-    if self.cycle_n >= 257 && self.cycle_n <= 320 {
-      bus.ppu_mem.oam_addr = 0x0;
+    else {
+      if self.cycle_n % 2 == 0 && self.cycle_n >= 64 && self.cycle_n <= 256 {
+        self.oam_write_secondary(bus);
+      }
+      if self.cycle_n >= 257 && self.cycle_n <= 320 {
+        bus.ppu_mem.oam_addr = 0x0;
+      }
     }
   }
 
@@ -209,29 +218,33 @@ impl PPU {
     }
   }
 
-  fn bg_color(&mut self, bus: &mut Bus) -> NesColor {
+  fn bg_color(&mut self, bus: &mut Bus) -> usize {
     let mut color_index : u16 = (self.reg.shift_back_16[0] & 1) | ((self.reg.shift_back_16[1] & 1) << 1);
     if color_index != 0 {
       let quadrant: u16 = (bus.ppu_mem.v & 1) | ((bus.ppu_mem.v & 0b0000_0000_0010_0000) >> 4);
       color_index += ((((self.reg.shift_back_8[0] >> (quadrant << 1)) & 3) << 2) as u16);
       //println!("quadrant = {} {:#4x} {} {}", quadrant, color_index, (self.reg.shift_back_8[0] >> (quadrant << 1)) & 3, (self.reg.shift_back_16[0] & 1) | ((self.reg.shift_back_16[1] & 1) << 1));
     }
-    let mut color = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
+    //let mut color = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
     //let mut quadrant: u16 = (bus.ppu_mem.v & 1) | ((bus.ppu_mem.v & 0b0000_0000_0010_0000) >> 4);
     //if quadrant == 3 {quadrant = 0;}
     //color_index = quadrant;
     //let color2 = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
     //color = color.mix(color2, 0.1); 
-    color
+    color_index as usize
   }
 
-  fn sprite_color(&mut self, bus: &mut Bus, color: &mut NesColor) -> bool{
+  fn sprite_color(&mut self, bus: &mut Bus) -> (usize, bool, bool){
     let mut color_index: u16 = 0;
     let mut priority = false;
+    let mut sprite0 = false;
 
     let mut i = 0;
     while i < 8 {
       if (self.reg.counter_sprite[i] == 0) {
+        if i == 0 && self.has_sprite0 {
+          sprite0 = true;
+        }
         color_index = ((self.reg.shift_sprite_low[i] & 1) | ((self.reg.shift_sprite_high[i] & 1) << 1)).into();
         if color_index != 0 {
           color_index += (((self.reg.latch_sprite[i] & 3) << 2) as u16);
@@ -246,27 +259,30 @@ impl PPU {
       }
       i += 1;
     }
-    *color = self.palette.color[bus.ppu_read((color_index + 0x3F00) as usize) as usize];
-    priority
+    (color_index as usize, priority, sprite0)
   }
 
   fn scanline_render(&mut self, bus: &mut Bus) {
-    let mut bg_color = self.palette.color[0];
-    let mut sp_color = self.palette.color[0];
+    let mut bg_color: usize = 0x00;
+    let mut sp_color: usize = 0x00;
     let mut priority = false;
+    let mut sprite0 = false;
 
     if bus.ppu_mem.read_mask() & 0b0000_1000 != 0 {
       bg_color = self.bg_color(bus);
     }
     if bus.ppu_mem.read_mask() & 0b0001_0000 != 0 {
-      priority = self.sprite_color(bus, &mut sp_color);
+      (sp_color, priority, sprite0) = self.sprite_color(bus);
     }
-    if (priority) {
-      self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, sp_color);
+    let mut color = self.palette.color[bus.ppu_read((bg_color + 0x3F00) as usize) as usize];
+    if (sprite0 && bg_color != 0x00 && sp_color != 0x00) {
+      bus.ppu_mem.set_sprite_0hit(true);
+      println!("sprite_0hit{}", self.scanline_n);
     }
-    else {
-      self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, bg_color);
+    if priority && sp_color != 0x00 {
+      color = self.palette.color[bus.ppu_read((sp_color + 0x3F00) as usize) as usize];
     }
+    self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, color);
   }
 
   fn handle_scanline(&mut self, bus: &mut Bus) -> bool{
@@ -349,6 +365,9 @@ impl PPU {
           attr: bus.ppu_mem.oam_read(self.cur_oam, 2),
           x: bus.ppu_mem.oam_read(self.cur_oam, 3),
         });
+        if self.cur_oam == 0 {
+          self.has_sprite0_next = true;
+        }
       }
       self.cur_oam += 1;
       if self.sprite_overflow {

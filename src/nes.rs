@@ -8,12 +8,14 @@ pub mod controller;
 mod clock;
 
 use std::error::Error;
+
 use bus::Bus;
 use cpu::CPU;
 use ppu::{PPU, PPUInfo};
 use cartridge::Cartridge;
 use clock::{Clock, SlaveClock};
 use controller::Controller;
+use mapper::{Mapper, MapperType};
 
 #[allow(non_camel_case_types)]
 pub enum DebugEvent {
@@ -44,11 +46,11 @@ pub struct Nes {
 }
 
 impl Nes {
-  pub fn new(cartridge: Cartridge, controller: Box<dyn Controller>) -> Self {
-    Self {
+  pub fn new(cartridge: Cartridge, controller: Box<dyn Controller>) -> Result<Self, Box<dyn Error>> {
+    let mut new = Self {
       cpu: CPU::new(),
       ppu: PPU::new(),
-      bus: Bus::new(&cartridge, controller),
+      bus: Bus::new(controller),
       cpu_clock: SlaveClock::new(3),
       ppu_clock: SlaveClock::new(1),
       cartridge,
@@ -56,7 +58,10 @@ impl Nes {
       cpu_nmi: false,
       debug_no_nmi: false,
       breakpoint: false,
-    }
+    };
+    let mapper = mapper::load_rom(&new.cartridge)?;
+    new.bus.load_mapper(mapper);
+    Ok(new)
   }
 
   pub fn load_palette(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
@@ -93,8 +98,10 @@ impl Nes {
     if self.cpu_clock.tick() {
       if self.cpu.tick(&mut self.bus) {
         let (s_index, cycles) = self.ppu.get_cycles_info();
-        //println!("\tPPU: {},{}\tCYC:{}", s_index, cycles, self.cpu.get_cycles_frame());
-        //self.bus.print_ppu_reg();
+        if self.cpu.debug {
+          println!("\tPPU: {},{}\tCYC:{}", s_index, cycles, self.cpu.get_cycles_frame());
+          //self.bus.print_ppu_reg();
+        }
       }
     }
     b
@@ -144,6 +151,10 @@ impl Nes {
   pub fn ppu_rendering_info(&self) -> PPUInfo {
     self.ppu.render_info()
   }
+
+  pub fn set_cpu_debug(&mut self, debug: bool) {
+   self.cpu.set_debug(debug); 
+  }
 }
 
 impl Nes {
@@ -155,7 +166,8 @@ impl Nes {
       DebugEvent::SHOW_PPU_VRAM => {;},
       DebugEvent::SHOW_PPU_OAM=> {;},
       DebugEvent::SHOW_PPU_PALETTE => {self.bus.ppu_mem.print_palette();},
-      DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
+      //DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
+      _ => (),
     }
   }
 }
