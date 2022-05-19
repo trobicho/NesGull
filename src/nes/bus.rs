@@ -82,7 +82,7 @@ impl MemWrite for Bus {
     match addr16 {
       0x0000..=0x0800 => self.wram.write(addr, value),
       OAMDMA_CPU_ADDR => {self.oam_dma = (true, value, 0x00)},
-      0x2000..=0x2007 => self.ppu_mem.write(addr, value),
+      0x2000..=0x2007 => self.ppu_mem.write(&mut self.mapper, addr, value),
       0x4016 | 0x4017 => self.input.write(addr, value),
       0x4000..=0x401F => self.cpu_mapped_reg.write(addr, value),
       0x4020..=0xFFFF => self.mapper.write(addr, value),
@@ -95,7 +95,7 @@ impl Bus {
   pub fn ppu_read(&mut self, addr: usize) -> u8 {
     match addr {
       0x0000..=0x1FFF => self.mapper.read(addr),
-      0x2000..=0x3FFF => self.ppu_mem.ppu_read(addr),
+      0x2000..=0x3FFF => self.ppu_mem.ppu_read(&mut self.mapper, addr),
       _ => 0,
     }
   }
@@ -103,7 +103,7 @@ impl Bus {
   pub fn ppu_write(&mut self, addr: usize, value: u8) {
     match addr {
       0x0000..=0x1FFF => self.mapper.write(addr, value),
-      0x2000..=0x3FFF => self.ppu_mem.ppu_write(addr, value),
+      0x2000..=0x3FFF => self.ppu_mem.ppu_write(&mut self.mapper, addr, value),
       _ => (),
     }
   }

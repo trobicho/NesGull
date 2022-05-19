@@ -274,13 +274,13 @@ impl PPU {
     if bus.ppu_mem.read_mask() & 0b0001_0000 != 0 {
       (sp_color, priority, sprite0) = self.sprite_color(bus);
     }
-    let mut color = self.palette.color[bus.ppu_read((bg_color + 0x3F00) as usize) as usize];
+    let mut color = self.palette.color[(bus.ppu_read((bg_color + 0x3F00) as usize) % 64) as usize];
     if (sprite0 && bg_color != 0x00 && sp_color != 0x00) {
       bus.ppu_mem.set_sprite_0hit(true);
       println!("sprite_0hit{}", self.scanline_n);
     }
     if priority && sp_color != 0x00 {
-      color = self.palette.color[bus.ppu_read((sp_color + 0x3F00) as usize) as usize];
+      color = self.palette.color[(bus.ppu_read((sp_color + 0x3F00) as usize) % 64) as usize];
     }
     self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, color);
   }

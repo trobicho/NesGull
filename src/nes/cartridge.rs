@@ -25,8 +25,8 @@ pub enum TimingType {
 
 #[derive(Debug)]
 pub struct NesHeader {
-  pub prg_rom_size: u16,
-  pub chr_rom_size: u16,
+  pub prg_rom_size: usize,
+  pub chr_rom_size: usize,
 
   pub mirroring_type: MirroringType,
   pub battery: bool,
@@ -78,8 +78,8 @@ impl fmt::Display for NesHeader {
 impl NesHeader {
   pub fn new(header: &[u8]) -> Self {
     Self {
-      prg_rom_size: (header[4] as u16) * 16 * 1024,
-      chr_rom_size: (header[5] as u16) * 8 * 1024,
+      prg_rom_size: (header[4] as usize) * 16 * 1024,
+      chr_rom_size: (header[5] as usize) * 8 * 1024,
       mirroring_type: {
         let mut m_type = MirroringType::Horizontal;
         if header[6] & 0b0000_0001 != 0 {
@@ -141,9 +141,9 @@ impl Cartridge {
     let cart = Cartridge {
       //prg_rom: rom[rom_info.start_prg..(rom_info.start_prg + rom_info.size_prg)].to_vec(),
       prg_rom: Self::prg_rom_vec(rom, &header),
-      prg_size: header.prg_rom_size.into(),
+      prg_size: header.prg_rom_size,
       chr_rom: if header.chr_rom_size == 0 {None} else {Some(Self::chr_rom_vec(rom, &header))},
-      chr_size: header.prg_rom_size.into(),
+      chr_size: header.prg_rom_size,
       header,
     };
     println!("");

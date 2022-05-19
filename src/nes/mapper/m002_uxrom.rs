@@ -2,17 +2,20 @@ use std::fmt;
 
 use crate::Cartridge;
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory},
+  memory::{MemRead, MemWrite, Memory, BankableMemory},
   mapper::{Mapper, MapperType, MirroringType},
 };
+
+const PRG_ROM_WINDOW: usize = 16 * 1024;
+const CHR_WINDOW: usize = 8 * 1024;
+const CHR_RAM_SIZE: usize = 8 * 1024;
 
 //const PRG_RAM_SIZE
 
 #[derive(Debug, Clone)]
 pub struct Uxrom {
-  prg_ram: Memory,
-  prg_rom: Memory,
-  chr_rom: Memory,
+  prg_rom: BankableMemory,
+  chr: BankableMemory,
   //prg_rom_size: usize,
   mirroring: MirroringType,
 }
@@ -25,18 +28,19 @@ impl fmt::Display for Uxrom {
 
 impl Uxrom {
   pub fn load(cartridge: &Cartridge) -> MapperType {
-    let uxrom = Self {
-      prg_ram: Memory::ram(8 * 1024),
-      prg_rom: Memory::rom_from_bytes(&cartridge.prg_rom),
-      chr_rom: {match &cartridge.chr_rom {
+    let mut uxrom = Self {
+      prg_rom: BankableMemory::rom_from_bytes(&cartridge.prg_rom, PRG_ROM_WINDOW),
+      chr: {match &cartridge.chr_rom {
         Some(chr_rom) => {
-          println!();
-          Memory::rom_from_bytes(&chr_rom)
+          BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (Memory::new())
+        None => (BankableMemory::ram(CHR_RAM_SIZE, CHR_WINDOW))
       }},
       mirroring: cartridge.header.mirroring_type,
     };
+    uxrom.prg_rom.add_bank_range(0x8000, 0xFFFF);
+    uxrom.prg_rom.set_bank(0xC000, uxrom.prg_rom.last_bank());
+    uxrom.chr.add_bank_range(0x0000, 0x1FFF);
     uxrom.into()
   }
 }
@@ -71,9 +75,9 @@ impl Mapper for Uxrom {
 impl MemRead for Uxrom {
   fn read(&mut self, addr: usize) -> u8 {
     match addr {
-      0x0000..=0x1FFF => self.chr_rom.read(addr),
-      0x6000..=0x7FFF => self.prg_ram.read(addr),
-      0x8000..=0xFFFF => self.prg_rom.read(addr),
+      0x0000..=0x1FFF => self.chr.read(addr),
+      0x8000..=0xBFFF => self.prg_rom.read(addr),
+      0xC000..=0xFFFF => self.prg_rom.read(addr),
       _ => 0,
     }
   }
@@ -82,8 +86,11 @@ impl MemRead for Uxrom {
 impl MemWrite for Uxrom {
   fn write(&mut self, addr: usize, value: u8) {
     match addr {
-      0x0000..=0x1FFF => self.chr_rom.write(addr, value),
-      0x8000..=0xFFFF => self.prg_rom.write(addr, value),
+      0x0000..=0x1FFF => self.chr.write(addr, value),
+      0x8000..=0xFFFF => {
+        let v = value & 0b0000_1111;
+        self.prg_rom.set_bank(0x8000, v.into());
+      },
       _ => (),
     }
   }

@@ -98,7 +98,7 @@ pub trait Mapper: MemRead + MemWrite {
 pub fn load_rom(cart: &Cartridge) -> Result<MapperType, Box<dyn Error>> {
   match cart.header.mapper_num {
     0 => Ok(Nrom::load(cart)),
-    1 => Ok(MMC1::load(cart)),
+    //1 => Ok(MMC1::load(cart)),
     2 => Ok(Uxrom::load(cart)),
     71 => Ok(Uxrom::load(cart)), // TODO: Mapper 71 has slight differences from Uxrom
     _ => Err(Box::new(ErrorMissingMapper::new(cart.header.mapper_num))),

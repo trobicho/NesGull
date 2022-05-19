@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::nes::{
   memory::{Memory, MemRead, MemWrite},
-  mapper::{MirroringType},
+  mapper::{MirroringType, MapperType},
 };
 
 const NAMETABLE_ADDR: u16 = 0x2000;
@@ -186,8 +186,8 @@ impl MemRead  for PPUMemory {
   }
 }
 
-impl MemWrite for PPUMemory {
-  fn write(&mut self, addr: usize, value: u8) {
+impl PPUMemory {
+  pub fn write(&mut self, mapper: &mut MapperType, addr: usize, value: u8) {
     let addr = addr as u16;
     match addr {
       PPUCTRL_CPU_ADDR => {
@@ -223,7 +223,7 @@ impl MemWrite for PPUMemory {
         self.w = !self.w;
       },
       PPUDATA_CPU_ADDR => {
-        self.ppu_write((self.v | 0x2000).into(), value);
+        self.ppu_write(mapper, self.v.into(), value);
         //self.vram.write((self.v % 0x2000).into(), value);
         //print!(" PPUDATA: {:#06x} {} ", self.v, value);
         if self.ctrl & 0b0000_0100 != 0 {
@@ -246,8 +246,9 @@ impl PPUMemory {
     self.oam.read(addr)
   }
 
-  pub fn ppu_read(&mut self, addr: usize) -> u8 {
+  pub fn ppu_read(&mut self, mapper: &mut MapperType, addr: usize) -> u8 {
     match addr {
+      0x0000..=0x1FFF => mapper.read(addr),
       0x2000..=0x2FFF => self.vram.read(self.mirroring(addr)),
       0x3000..=0x3EFF => self.vram.read(self.mirroring(addr)),
       0x3F10 => self.palette.read(0x00),
@@ -259,8 +260,9 @@ impl PPUMemory {
     }
  }
 
- pub fn ppu_write(&mut self, addr: usize, value: u8) {
+ pub fn ppu_write(&mut self, mapper: &mut MapperType, addr: usize, value: u8) {
     match addr {
+      0x0000..=0x1FFF => mapper.write(addr, value),
       0x2000..=0x2FFF => self.vram.write(self.mirroring(addr), value),
       0x3000..=0x3EFF => self.vram.write(self.mirroring(addr), value),
       0x3F10 => self.palette.write(0x00, value),
