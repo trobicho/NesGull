@@ -17,6 +17,7 @@ pub struct NesController {
   output: u8,
   port: usize,
   report_count: u8,
+  strobe: bool,
 }
 
 impl NesController {
@@ -33,6 +34,7 @@ impl NesController {
       output: 0x00,
       port,
       report_count: 0,
+      strobe: false,
     }
   }
 
@@ -49,9 +51,14 @@ impl NesController {
   }
 
   fn set_strobe(&mut self, value: bool) {
+    //println!("Strobe Set to {}", value);
+    self.strobe = value;
   }
 
   fn port_report(&mut self) -> u8 {
+    if (self.strobe) {
+      self.report_count = 0;
+    }
     let report = match (self.report_count) {
       0 => self.A,
       1 => self.B,
@@ -89,7 +96,7 @@ impl Controller for NesController {
   }
 
   fn update(&mut self) {
-    self.A = self.controller.button(Button::A);
+    self.A = self.controller.button(Button::X);
     self.B = self.controller.button(Button::B);
     self.Start = self.controller.button(Button::Start);
     self.Select = self.controller.button(Button::Back);

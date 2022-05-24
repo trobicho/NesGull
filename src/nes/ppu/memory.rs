@@ -22,7 +22,8 @@ pub struct Oam {
   pub y: u8,
   pub tile: u8,
   pub attr: u8,
-  pub x: u8
+  pub x: u8,
+  pub is_sprite0: bool,
 }
 
 impl Oam {
@@ -32,6 +33,7 @@ impl Oam {
       tile: 0xFF,
       attr: 0xFF,
       x: 0xFF,
+      is_sprite0: false,
     }
   }
 }
@@ -202,8 +204,8 @@ impl PPUMemory {
         if self.w {
           self.t = (self.t & 0b0000_1100_0001_1111)
             | (((value & 0b0000_0111) as u16) << 12)
-            | (((value & 0b0011_1000) as u16) << 5)
-            | (((value & 0b1100_0000) as u16) << 8);
+            | (((value & 0b0011_1000) as u16) << 2)
+            | (((value & 0b1100_0000) as u16) << 2);
         }
         else {
           self.x = value & 0b0000_0111;

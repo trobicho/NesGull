@@ -378,7 +378,7 @@ impl CPU {
       Instruction::RTS => {self.RTS(bus)},
       //Interrupt commands:
       Instruction::RTI => {self.RTI(bus)},
-      Instruction::BRK => {self.BRK(bus)},
+      //Instruction::BRK => {self.BRK(bus)},
       //Flags commands:
       Instruction::CLC => {self.CLC(bus)},
       Instruction::SEC => {self.SEC(bus)},
@@ -397,6 +397,9 @@ impl CPU {
       Instruction::LAX => (self.LAX(bus)),
       Instruction::DCP => (self.DCP(bus)),
       Instruction::ISC => (self.ISC(bus)),
+      Instruction::ANC => (self.ANC(bus)),
+      Instruction::ALR => (self.ALR(bus)),
+      Instruction::ARR => (self.ARR(bus)),
       _ => {println!("not implemented yet: {}", self.instr.instr)}
     }
   }
@@ -1002,5 +1005,18 @@ impl CPU {
   fn ISC(&mut self, bus: &mut Bus) {
     self.INC(bus);
     self.SBC(bus);
+  }
+  //Imm + impl
+  fn ANC(&mut self, bus: &mut Bus) {
+    self.AND(bus);
+    self.reg.P.set_C(if self.operand[0] & 0b1000_0000 != 0 {true} else {false});
+  }
+  fn ALR(&mut self, bus: &mut Bus) {
+    self.AND(bus);
+    self.LSR(bus);
+  }
+  fn ARR(&mut self, bus: &mut Bus) {
+    self.AND(bus);
+    self.ROR(bus);
   }
 }

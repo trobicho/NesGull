@@ -165,6 +165,9 @@ impl BankableMemory {
   }
 
   pub fn add_bank_range(&mut self, addr_first: usize, addr_last: usize) {
+    if (self.bank_count == 0) {
+      return;
+    }
     let mut addr = addr_first;
     let mut i = 0;
     while addr < addr_last {

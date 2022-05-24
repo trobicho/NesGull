@@ -8,7 +8,7 @@ use crate::nes::{
 
 const PRG_ROM_WINDOW: usize = 16 * 1024;
 const CHR_WINDOW: usize = 8 * 1024;
-const CHR_RAM_SIZE: usize = 8 * 1024;
+const CHR_SIZE: usize = 8 * 1024;
 
 //const PRG_RAM_SIZE
 
@@ -16,7 +16,6 @@ const CHR_RAM_SIZE: usize = 8 * 1024;
 pub struct Uxrom {
   prg_rom: BankableMemory,
   chr: BankableMemory,
-  //prg_rom_size: usize,
   mirroring: MirroringType,
 }
 
@@ -34,7 +33,7 @@ impl Uxrom {
         Some(chr_rom) => {
           BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (BankableMemory::ram(CHR_RAM_SIZE, CHR_WINDOW))
+        None => (BankableMemory::ram(CHR_SIZE, CHR_WINDOW))
       }},
       mirroring: cartridge.header.mirroring_type,
     };

@@ -137,7 +137,7 @@ fn main() -> Result<(), Box<dyn Error>>{
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
           run = false;
-          nes.tick_n(4 * 8);
+          nes.tick_n(4 * 2);
         },
         Event::KeyDown {keycode: Some(Keycode::F), ..} => {
           run = false;

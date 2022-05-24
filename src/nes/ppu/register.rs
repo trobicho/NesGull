@@ -17,7 +17,7 @@ pub struct Register {
   pub shift_sprite_high: Vec<u8>,
   pub shift_sprite_low: Vec<u8>,
   pub latch_sprite: Vec<u8>,
-  pub counter_sprite: Vec<u8>,
+  pub counter_sprite: Vec<(u8, u8, bool)>,
   oam_cur: usize,
 }
 
@@ -34,7 +34,7 @@ impl Register {
       shift_sprite_high: vec![0; 8],
       shift_sprite_low: vec![0; 8],
       latch_sprite: vec![0; 8],
-      counter_sprite: vec![0; 8],
+      counter_sprite: vec![(0, 0, false); 8],
       oam_cur: 0,
     }
   }
@@ -49,8 +49,8 @@ impl Register {
   }
 
   pub fn shift_back_reg(&mut self) {
-    self.shift_back_16[0] = self.shift_back_16[0].wrapping_shr(1);
-    self.shift_back_16[1] = self.shift_back_16[1].wrapping_shr(1);
+    self.shift_back_16[0] >>= 1;
+    self.shift_back_16[1] >>= 1;
   }
 
   pub fn oam_clear_secondary(&mut self) {
@@ -60,8 +60,8 @@ impl Register {
 
   pub fn counter_dec(&mut self) {
     for c in &mut self.counter_sprite {
-      if (*c > 0) {
-        *c -= 1;
+      if (c.0 > 0) {
+        c.0 -= 1;
       }
     }
   }
