@@ -58,6 +58,7 @@ pub struct PPUMemory {
 
   nmi_output: bool,
   mirroring_type: MirroringType,
+  data_read_buffer: u8,
 }
 
 impl PPUMemory {
@@ -79,6 +80,7 @@ impl PPUMemory {
       palette: Memory::ram(0x20),
       nmi_output: true,
       mirroring_type: MirroringType::Horizontal,
+      data_read_buffer: 0,
     }
   }
 }
@@ -111,6 +113,7 @@ impl PPUMemory {
       true => self.status |= 0b1000_0000,
       false => self.status &= 0b0111_1111,
     }
+    self.nmi_output = if self.ctrl & 0b1000_0000 != 0 {true} else {false};
   }
 
   pub fn set_sprite_overflow(&mut self, bit: bool) {
@@ -141,7 +144,7 @@ impl PPUMemory {
     println!("{}", self.mirroring_type);
   }
 
-  fn mirroring(&self, addr: usize) -> usize {
+  pub fn mirroring(&self, addr: usize) -> usize {
     let mut addr = addr;
     match addr {
       0x2000..=0x2FFF => {addr -= 0x2000;},
@@ -159,22 +162,28 @@ impl PPUMemory {
   }
 }
 
-impl MemRead  for PPUMemory {
-  fn read(&mut self, addr: usize) -> u8 {
+impl PPUMemory {
+  pub fn read(&mut self, mapper: &mut MapperType, addr: usize) -> u8 {
     let addr = addr as u16;
     match addr {
       PPUSTATUS_CPU_ADDR => {
         self.w = false;
         let v = self.status;
         self.set_interupt(false);
-        //print!(" PPUSTATUS({:#010b} {:#010b})", v, self.status);
         v
       },
       OAMDATA_CPU_ADDR => {
         self.oam.read(self.oam_addr.into())
       }
       PPUDATA_CPU_ADDR => {
-        let value = self.vram.read(self.mirroring(self.v.into()));
+        let mut value = 0;
+        if self.v < 0x3EFF {
+          value = self.data_read_buffer;
+          self.data_read_buffer = self.ppu_read(mapper, self.v.into());
+        }
+        else {
+          value = self.ppu_read(mapper, self.v.into());
+        }
         if self.ctrl & 0b0000_0010 != 0 {
           self.v += 32;
         }
@@ -186,9 +195,7 @@ impl MemRead  for PPUMemory {
       _ => 0,
     }
   }
-}
 
-impl PPUMemory {
   pub fn write(&mut self, mapper: &mut MapperType, addr: usize, value: u8) {
     let addr = addr as u16;
     match addr {
@@ -199,7 +206,10 @@ impl PPUMemory {
       }
       PPUMASK_CPU_ADDR => self.mask = value,
       OAMADDR_CPU_ADDR => self.oam_addr = value,
-      OAMDATA_CPU_ADDR => {self.oam.write(self.oam_addr.into(), value); self.oam_addr.wrapping_add(1);},
+      OAMDATA_CPU_ADDR => {
+        self.oam.write(self.oam_addr.into(), value);
+        self.oam_addr.wrapping_add(1);
+      },
       PPUSCROLL_CPU_ADDR => {
         if self.w {
           self.t = (self.t & 0b0000_1100_0001_1111)
@@ -220,14 +230,11 @@ impl PPUMemory {
         else {
           self.t = (self.t & 0b0011_1111_0000_0000) | ((value & 0b1111_1111) as u16);
           self.v = self.t;
-          //print!(" PPUADDR: {:#06x} {:#04x} ", self.v, value);
         }
         self.w = !self.w;
       },
       PPUDATA_CPU_ADDR => {
         self.ppu_write(mapper, self.v.into(), value);
-        //self.vram.write((self.v % 0x2000).into(), value);
-        //print!(" PPUDATA: {:#06x} {} ", self.v, value);
         if self.ctrl & 0b0000_0100 != 0 {
           self.v += 32;
         }
@@ -237,8 +244,7 @@ impl PPUMemory {
       }
       _ => (),
     }
-    self.status |= (value & 0b0001_1111)
-    //println!("{}", self);
+    self.status |= value & 0b0001_1111
   }
 }
 

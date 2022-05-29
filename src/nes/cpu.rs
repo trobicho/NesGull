@@ -181,7 +181,7 @@ pub struct CPU {
   pub debug: bool,
 }
 
-impl Clock for CPU {
+impl Clock<bool> for CPU {
   fn tick(&mut self, bus: &mut Bus) -> bool{
     self.cycles_since_last_exec += 1;
     self.cycles_frame += 1;
@@ -189,7 +189,7 @@ impl Clock for CPU {
       //print!("-");
     //}
     if self.cycles_since_last_exec >= self.cycles_instr {
-      if (bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0) {
+      if bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0 {
         bus.ppu_mem.nmi();
         self.cycles_instr += 2;
         self.NMI(bus);

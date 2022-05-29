@@ -1,11 +1,12 @@
+use enum_dispatch::enum_dispatch;
+
 use crate::nes::{
   bus::Bus,
+  apu::channel::ChannelType
 };
 
-pub trait Clock {
-  fn tick(&mut self, _bus: &mut Bus) -> bool {
-    false
-  }
+pub trait Clock<T> {
+  fn tick(&mut self, _bus: &mut Bus) -> T;
 
   fn tick_n(&mut self, bus: &mut Bus, t: u32) {
     for _ in 0..t {

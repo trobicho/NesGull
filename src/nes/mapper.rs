@@ -11,7 +11,7 @@ use m001_mmc1::MMC1;
 use m002_uxrom::Uxrom;
 
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory},
+  memory::{MemRead, MemWrite},
 };
 
 use crate::Cartridge;

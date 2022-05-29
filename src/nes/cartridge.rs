@@ -6,6 +6,7 @@ use crate::nes::{
 };
 
 #[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 pub enum ConsoleType {
   NES,
@@ -14,7 +15,7 @@ pub enum ConsoleType {
   Extended(u8),
 }
 
-#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 pub enum TimingType {
   NTSC_NES,

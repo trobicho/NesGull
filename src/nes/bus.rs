@@ -1,8 +1,9 @@
-use crate::Cartridge;
 use crate::nes::{
   memory::{MemRead, MemWrite, Memory},
   mapper::{self, Mapper, MapperType},
   ppu::memory::{PPUMemory, OAMDMA_CPU_ADDR},
+  apu::memory::{APUMemory},
+  apu::mixer::{Mixer},
   controller::{Controller},
 };
 
@@ -10,9 +11,10 @@ pub struct Bus {
   pub(super) wram: Memory,
   pub(super) mapper: Box<MapperType>,
   pub ppu_mem: PPUMemory,
-  pub(super) cpu_mapped_reg: Memory,
+  pub apu_mem: APUMemory,
   oam_dma: (bool, u8, u8),
   pub(super) input: Box<dyn Controller>,
+  pub mixer: Mixer,
   //ppu: PPU,
   //apu: APU,
   //input: Input,
@@ -20,14 +22,15 @@ pub struct Bus {
 }
 
 impl Bus {
-  pub fn new(input: Box<dyn Controller>) -> Self {
+  pub fn new(input: Box<dyn Controller>, mixer: Mixer) -> Self {
     Self {
       wram: Memory::ram(0x0800),
       ppu_mem: PPUMemory::new(),
-      cpu_mapped_reg: Memory::ram(0x2F),
+      apu_mem: APUMemory::new(),
       mapper: Box::new(mapper::null()),
       oam_dma: (false, 0, 0),
       input,
+      mixer,
     }
   }
 
@@ -52,7 +55,7 @@ impl Bus {
     let addr: u16 = (((self.oam_dma.1) as u16) << 8) | (self.oam_dma.2 as u16);
     let value = self.read(addr.into());
     self.ppu_mem.oam_dma_write(value);
-    if (self.oam_dma.2 == 0xFF) {
+    if self.oam_dma.2 == 0xFF {
       self.oam_dma.0 = false;
     }
     else {
@@ -67,9 +70,9 @@ impl MemRead for Bus {
   fn read(&mut self, addr: usize) -> u8 {
     match addr {
       0x0000..=0x0800 => self.wram.read(addr),
-      (0x2000..=0x2007) | 0x4014 => self.ppu_mem.read(addr),
+      (0x2000..=0x2007) | 0x4014 => self.ppu_mem.read(&mut self.mapper, addr),
       0x4016 | 0x4017 => self.input.read(addr),
-      0x4000..=0x401F => self.cpu_mapped_reg.read(addr),
+      0x4000..=0x4017 => self.apu_mem.read(addr),
       0x4020..=0xFFFF => self.mapper.read(addr),
       _ => 0,
     }
@@ -84,7 +87,7 @@ impl MemWrite for Bus {
       OAMDMA_CPU_ADDR => {self.oam_dma = (true, value, 0x00)},
       0x2000..=0x2007 => self.ppu_mem.write(&mut self.mapper, addr, value),
       0x4016 | 0x4017 => self.input.write(addr, value),
-      0x4000..=0x401F => self.cpu_mapped_reg.write(addr, value),
+      0x4000..=0x4017 => self.apu_mem.write(addr, value),
       0x4020..=0xFFFF => self.mapper.write(addr, value),
       _ => (),
     }

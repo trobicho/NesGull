@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::Cartridge;
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory, BankableMemory},
+  memory::{MemRead, MemWrite, BankableMemory},
   mapper::{Mapper, MapperType, MirroringType},
 };
 

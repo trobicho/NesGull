@@ -1,7 +1,3 @@
-use crate::nes::{
-  memory::{Memory},
-};
-
 use super::memory::{Oam};
 
 #[allow(non_snake_case)]
@@ -44,7 +40,7 @@ impl Register {
       | (self.latch_PT[0] as u16).wrapping_shl(8);
     self.shift_back_16[1] = (self.shift_back_16[1] & 0b0000_0000_1111_1111)
       | (self.latch_PT[1] as u16).wrapping_shl(8);
-    self.shift_back_8[0] = self.AT_byte;
+    self.shift_back_8[0] = self.shift_back_8[1];
     self.shift_back_8[1] = self.AT_byte;
   }
 
@@ -60,14 +56,14 @@ impl Register {
 
   pub fn counter_dec(&mut self) {
     for c in &mut self.counter_sprite {
-      if (c.0 > 0) {
+      if c.0 > 0 {
         c.0 -= 1;
       }
     }
   }
 
   pub fn oam_add(&mut self, oam: Oam) -> bool{
-    if (self.oam_cur < 8) {
+    if self.oam_cur < 8 {
       self.oam_secondary[self.oam_cur] = oam;
       self.oam_cur += 1;
       true

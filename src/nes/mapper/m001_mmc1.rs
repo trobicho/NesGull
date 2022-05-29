@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::Cartridge;
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory, BankableMemory},
+  memory::{MemRead, MemWrite, BankableMemory},
   mapper::{Mapper, MapperType, MirroringType},
 };
 
@@ -89,7 +89,7 @@ impl MemRead for MMC1 {
     match addr {
       0x0000..=0x1FFF => self.chr.read(addr),
       0x6000..=0x7FFF => {
-        if (self.prg_bank & 0b10000 == 0) {
+        if self.prg_bank & 0b10000 == 0 {
           self.prg_ram.read(addr)
         }
         else {
@@ -109,7 +109,7 @@ impl MemWrite for MMC1 {
     match addr {
       0x0000..=0x1FFF => self.chr.write(addr, value),
       0x6000..=0x7FFF => {
-        if (self.prg_bank & 0b10000 == 0) {
+        if self.prg_bank & 0b10000 == 0 {
           self.prg_ram.write(addr, value);
         }
       },
@@ -119,7 +119,7 @@ impl MemWrite for MMC1 {
             self.control_write(self.control | 0xC);
         }
         else {
-          if (self.shift_reg & 1 == 1) {
+          if self.shift_reg & 1 == 1 {
             let v: u8 = self.shift_reg.wrapping_shr(1) | ((value & 1) << 4);
             match addr & 0b01110_0000_0000_0000 {
               0x8000 => self.control_write(v),

@@ -29,7 +29,7 @@ impl NesController {
       Select: false,
       DPad: (false, false, false, false),
       controller,
-      opposite_dpad: false,
+      opposite_dpad: true,
       input: 0x00,
       output: 0x00,
       port,
@@ -51,15 +51,12 @@ impl NesController {
   }
 
   fn set_strobe(&mut self, value: bool) {
-    //println!("Strobe Set to {}", value);
     self.strobe = value;
+    self.report_count = 0;
   }
 
   fn port_report(&mut self) -> u8 {
-    if (self.strobe) {
-      self.report_count = 0;
-    }
-    let report = match (self.report_count) {
+    let report = match self.report_count {
       0 => self.A,
       1 => self.B,
       2 => self.Select,
@@ -70,8 +67,10 @@ impl NesController {
       7 => self.DPad.3,
       _ => true,
     };
-    self.report_count += 1;
-    let report: u8 = if (report) {1} else {0};
+    if !self.strobe {
+      self.report_count += 1;
+    }
+    let report: u8 = if report {1} else {0};
     report
   }
 }
@@ -89,15 +88,15 @@ impl Controller for NesController {
   }
 
   fn write(&mut self, addr: usize, value: u8) {
-    match (addr) {
+    match addr {
       0x4016 => {self.set_strobe(if value & 1 == 1 {true} else {false})}
       _ => (),
     }
   }
 
   fn update(&mut self) {
-    self.A = self.controller.button(Button::X);
-    self.B = self.controller.button(Button::B);
+    self.A = self.controller.button(Button::B);
+    self.B = self.controller.button(Button::X);
     self.Start = self.controller.button(Button::Start);
     self.Select = self.controller.button(Button::Back);
     self.DPad.0 = self.controller.button(Button::DPadUp);
@@ -112,7 +111,6 @@ impl Controller for NesController {
         self.DPad.2 = false;
       }
     }
-    self.report_count = 0;
   }
 
   fn debug_print(&self) {
@@ -124,7 +122,7 @@ impl Controller for NesController {
       print!("DPAD:[left:{}, Down:{}, Right:{}, Up:{}]"
         , self.DPad.0, self.DPad.1, self.DPad.2, self.DPad.3);
     }
-    if (self.A || self.B || self.dpad_active()) {
+    if self.A || self.B || self.dpad_active() {
       println!("");
     }
   }

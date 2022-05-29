@@ -1,5 +1,5 @@
-#![allow(dead_code)]
 extern crate sdl2;
+extern crate cpal;
 
 mod nes;
 mod rom;
@@ -11,7 +11,8 @@ use std::time::Instant;
 
 use nes::{Nes, DebugEvent};
 use nes::cartridge::Cartridge;
-use nes::controller::{Controller, basic::NesController};
+use nes::controller::{basic::NesController};
+use nes::apu::mixer::Mixer;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -19,6 +20,7 @@ use sdl2::render::{TextureCreator};
 use sdl2::rect::Rect;
 use sdl2::controller::GameController;
 use sdl2::GameControllerSubsystem;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 const millis_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
 
@@ -100,7 +102,14 @@ fn main() -> Result<(), Box<dyn Error>>{
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/scanline/scanline.nes")?;
   //let nes_rom = rom::nes_rom_load("././nes-test-roms/nmi_sync/demo_ntsc.nes")?;
-  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller))?;
+  let audio_host = cpal::default_host();
+  let audio_device = audio_host.default_output_device().expect("failed to find output device");
+  println!("Audio output device: {}", audio_device.name()?);
+
+  let audio_config = audio_device.default_output_config().unwrap();
+  println!("Audio default output config: {:?}", audio_config);
+
+  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller), Mixer::new(audio_device, audio_config))?;
   nes.reset();
   //nes.debug_reset();
   nes.load_palette("./palettes/ntscpalette.pal")?;
@@ -150,6 +159,9 @@ fn main() -> Result<(), Box<dyn Error>>{
         Event::KeyDown {keycode: Some(Keycode::W), ..} => {
           nes.debug_event(DebugEvent::SHOW_CPU_WRAM);
         },
+        Event::KeyDown {keycode: Some(Keycode::A), ..} => {
+          nes.debug_event(DebugEvent::SHOW_APU_REG);
+        },
         Event::KeyDown {keycode: Some(Keycode::M), ..} => {
           nes.debug_event(DebugEvent::SHOW_PPU_VRAM);
         },
@@ -181,7 +193,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     }
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();
-    let frame = if (show_nametable) {nes.get_debug_frame()} else {nes.get_frame()};
+    let frame = if show_nametable {nes.get_debug_frame()} else {nes.get_frame()};
     frame_texture.update(None, frame.get_texture_buffer(), frame.width * 4)?;
     canvas.copy(&frame_texture, None, None)?;
     canvas.present();
