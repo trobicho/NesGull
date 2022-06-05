@@ -7,6 +7,8 @@ pub struct Mixer {
   config: cpal::StreamConfig,
   sample_format: cpal::SampleFormat,
   stream: Option<cpal::Stream>,
+  mute: bool,
+  volume: f32,
 }
 
 impl Mixer {
@@ -16,23 +18,32 @@ impl Mixer {
       sample_format: config.sample_format(),
       config: config.into(),
       stream: None,
+      mute: false,
+      volume: 0.3,
     };
     mixer.config.sample_rate = cpal::SampleRate(44100);
     mixer
   }
 
-  pub fn test(&mut self)
-  {
-    match self.sample_format {
-      cpal::SampleFormat::F32 => self.run::<f32>(),
-      cpal::SampleFormat::I16 => self.run::<i16>(),
-      cpal::SampleFormat::U16 => self.run::<u16>(),
+  pub fn add_to_stream(&mut self, data: f32) {
+    unsafe {
+      stream_data.push(data * self.volume);
     }
   }
 
-  pub fn add_to_stream(&mut self, data: f32) {
-    unsafe {
-      stream_data.push(data);
+  pub fn set_mute(&mut self, m: bool) {
+    if !m {
+      unsafe {
+        stream_data.clear();
+      }
+      match self.sample_format {
+        cpal::SampleFormat::F32 => self.run::<f32>(),
+        cpal::SampleFormat::I16 => self.run::<i16>(),
+        cpal::SampleFormat::U16 => self.run::<u16>(),
+      }
+    }
+    else {
+      self.stream = None;
     }
   }
 

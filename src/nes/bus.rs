@@ -91,6 +91,7 @@ impl MemWrite for Bus {
       0x4020..=0xFFFF => self.mapper.write(addr, value),
       _ => (),
     }
+    self.ppu_mem.set_mirroring(self.mapper.mirroring());
   }
 }
 

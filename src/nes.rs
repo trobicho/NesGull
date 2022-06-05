@@ -29,6 +29,7 @@ pub enum DebugEvent {
   SHOW_CPU_WRAM,
   SHOW_APU_REG,
   SHOW_MAPPER,
+  MUTE_GAME,
 }
 
 pub struct DebugFlag {
@@ -48,6 +49,7 @@ pub struct Nes {
   cpu_nmi: bool,
   debug_no_nmi: bool,
   breakpoint: bool,
+  mute: bool,
 }
 
 impl Nes {
@@ -65,9 +67,11 @@ impl Nes {
       cpu_nmi: false,
       debug_no_nmi: false,
       breakpoint: false,
+      mute: false,
     };
     let mapper = mapper::load_rom(&new.cartridge)?;
     new.bus.load_mapper(mapper);
+    new.bus.mixer.set_mute(new.mute);
     Ok(new)
   }
 
@@ -149,7 +153,6 @@ impl Nes {
         break;
       }
     }
-    //self.bus.mixer.test();
   }
   /*
   pub fn run_step(&mut self) {
@@ -177,6 +180,11 @@ impl Nes {
       DebugEvent::SHOW_PPU_VRAM => {},
       DebugEvent::SHOW_PPU_OAM=> {},
       DebugEvent::SHOW_PPU_PALETTE => {self.bus.ppu_mem.print_palette();},
+      DebugEvent::MUTE_GAME => {
+        self.mute = !self.mute;
+        self.bus.mixer.set_mute(self.mute);
+        println!("Game mute {}", self.mute);
+      },
       //DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
       _ => (),
     }

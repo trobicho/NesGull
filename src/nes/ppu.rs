@@ -13,7 +13,7 @@ use memory::*;
 
 use std::error::Error;
 
-const FRAME_HEIGHT_NTSC: usize = 224;
+const FRAME_HEIGHT_NTSC: usize = 240;
 const FRAME_HEIGHT_PAL: usize = 240;
 const FRAME_WIDTH: usize = 256;
 const PATTERN_TABLE_ADDR: u16 = 0x0000;
@@ -289,7 +289,7 @@ impl PPU {
         if self.work_cycle == 0 {
           self.reg.load_shift_reg();
         }
-        if self.cycle_n < 257  && self.scanline_n < 224 {
+        if self.cycle_n < 257 && self.scanline_n < self.frame.height as u32 {
           self.scanline_render(bus);
           self.reg.counter_dec();
         }
@@ -349,12 +349,14 @@ impl PPU {
     self.oam_offset = 0;
   }
 
-  fn sprite_y_in_range(&self, bus: &mut Bus, sprite_y: u32) -> bool{
-    //let max = if bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0 {16} else {8};
-    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + 8{
-      true
+  fn sprite_y_in_range(&self, bus: &mut Bus, sprite_y: u32) -> (bool, bool){
+    let max = if bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0 {16} else {8};
+    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + 8 {
+      (true, false)
+    } else if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + max {
+      (true, true)
     } else {
-      false
+      (false, false)
     }
   }
 
@@ -362,9 +364,10 @@ impl PPU {
     if self.cur_oam < 64 {
       let sprite_y = bus.ppu_mem.oam_read(self.cur_oam, self.oam_offset);
 
-      if !self.sprite_overflow && self.sprite_y_in_range(bus, sprite_y.into()) {
+      let (in_range, next_tile) = self.sprite_y_in_range(bus, sprite_y.into());
+      if !self.sprite_overflow && in_range {
         self.sprite_overflow = !self.reg.oam_add(Oam{
-          y: sprite_y, 
+          y: sprite_y,
           tile: bus.ppu_mem.oam_read(self.cur_oam, 1),
           attr: bus.ppu_mem.oam_read(self.cur_oam, 2),
           x: bus.ppu_mem.oam_read(self.cur_oam, 3),
@@ -373,7 +376,7 @@ impl PPU {
       }
       self.cur_oam += 1;
       if self.sprite_overflow {
-        if self.sprite_y_in_range(bus, sprite_y.into()) {
+        if in_range {
           bus.ppu_mem.set_sprite_overflow(true);
         }
         else {
@@ -386,18 +389,37 @@ impl PPU {
 
   fn load_SP(&mut self, bus: &mut Bus) {
     let ctrl = bus.ppu_mem.read_ctrl();
+    let mode_16 = ctrl & 0b0010_0000 != 0;
+
     for i in 0..8 {
       let oam = self.reg.oam_secondary[i];
       if oam.y != 0xFF {
-        let mut addr: usize = ((oam.tile as u16) << 4) as usize;
-        if ctrl & 0b0010_0000 == 0 && ctrl & 0b0000_1000 != 0 {
+        let mut addr: usize = {
+          if !mode_16 {
+            ((oam.tile as u16) << 4) as usize
+          }
+          else {
+            (((oam.tile as u16) & 0b1111_1110) << 4) as usize
+          }
+        };
+        let mut bottom_tile = if (self.scanline_n as usize) - (oam.y as usize) >= 8 {true} else {false};
+        if !mode_16 && ctrl & 0b0000_1000 != 0 {
+          addr += 0x1000;
+        }
+        else if mode_16 && oam.tile & 1 == 1{
           addr += 0x1000;
         }
         if oam.attr & 0b1000_0000 != 0 {
-          addr += 7 - ((self.scanline_n as usize) - (oam.y as usize));
+          addr += 7 - (((self.scanline_n as usize) - (oam.y as usize)) % 8);
+          if (mode_16) {
+            bottom_tile = !bottom_tile;
+          }
         }
         else {
-          addr += (self.scanline_n as usize) - (oam.y as usize);
+          addr += ((self.scanline_n as usize) - (oam.y as usize)) % 8;
+        }
+        if (bottom_tile) {
+          addr += 16;
         }
         if oam.attr & 0b0100_0000 != 0 {
           self.reg.shift_sprite_low[i] = bus.ppu_read(addr.into());

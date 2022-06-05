@@ -49,7 +49,6 @@ impl Mapper for Nrom {
   }
 
   fn mirroring(&self) -> MirroringType {
-    println!("{}", self.mirroring);
     self.mirroring
   }
   fn irq_pending(&mut self) -> bool {

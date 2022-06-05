@@ -27,8 +27,8 @@ pub enum ChannelType{
 
 #[enum_dispatch(ChannelType)]
 pub trait Channel: {
-  fn tick(&mut self, _bus: &mut Bus) -> (bool, f32) {
-    (false, 0f32)
+  fn tick(&mut self, _bus: &mut Bus) -> u8 {
+    0
   }
 }
 

@@ -141,7 +141,6 @@ impl PPUMemory {
 
   pub fn set_mirroring(&mut self, mirroring_type: MirroringType) {
     self.mirroring_type = mirroring_type;
-    println!("{}", self.mirroring_type);
   }
 
   pub fn mirroring(&self, addr: usize) -> usize {
@@ -153,7 +152,12 @@ impl PPUMemory {
     }
     match self.mirroring_type {
       MirroringType::Vertical => {addr %= 0x800;},
-      MirroringType::Horizontal => if (addr >= 0x400 && addr < 0x800) || addr >= 0xC00 {addr -= 0x400},
+      MirroringType::Horizontal => {
+        if (addr >= 0x400 && addr < 0x800) || addr >= 0xC00 {addr -= 0x400;}
+        if (addr > 0x800) {
+          addr -= 0x400;
+        }
+      }
       MirroringType::FourScreen => (),
       MirroringType::SingleScreenA => {addr %= 0x400;},
       MirroringType::SingleScreenB => {addr %= 0x400; addr |= 0x400},

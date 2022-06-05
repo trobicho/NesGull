@@ -112,8 +112,8 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller), Mixer::new(audio_device, audio_config))?;
   nes.reset();
   //nes.debug_reset();
-  nes.load_palette("./palettes/ntscpalette.pal")?;
-  //nes.load_palette("./palettes/SMM Palette 1.0.pal")?;
+  //nes.load_palette("./palettes/ntscpalette.pal")?;
+  nes.load_palette("./palettes/SMM Palette 1.0.pal")?;
   //println!("=============================");
   //nes.show_mem();
   //nes.run();
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   let (height, width) = canvas.output_size()?;
   let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
-  let mut run = false;
+  let mut run = true;
   let mut show_nametable = false;
   let mut cpu_debug = false;
   let mut frame_nb = 0;
@@ -163,7 +163,8 @@ fn main() -> Result<(), Box<dyn Error>>{
           nes.debug_event(DebugEvent::SHOW_APU_REG);
         },
         Event::KeyDown {keycode: Some(Keycode::M), ..} => {
-          nes.debug_event(DebugEvent::SHOW_PPU_VRAM);
+          //nes.debug_event(DebugEvent::SHOW_PPU_VRAM);
+          nes.debug_event(DebugEvent::MUTE_GAME);
         },
         Event::KeyDown {keycode: Some(Keycode::P), ..} => {
           nes.debug_event(DebugEvent::SHOW_PPU_PALETTE);
