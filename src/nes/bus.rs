@@ -5,6 +5,7 @@ use crate::nes::{
   apu::memory::{APUMemory},
   apu::mixer::{Mixer},
   controller::{Controller},
+  save_state::SaveState,
 };
 
 pub struct Bus {
@@ -49,6 +50,20 @@ impl Bus {
 
   pub fn get_oam_dma_state(&self) -> bool {
     self.oam_dma.0
+  }
+
+  pub fn save_state(&self) -> SaveState {
+    let mut state = SaveState::new();
+    state.wram = self.wram.clone();
+    state.ppu_mem = self.ppu_mem.clone();
+    state.mapper = self.mapper.clone();
+    state
+  }
+
+  pub fn load_state(&mut self, state: &SaveState) {
+    self.wram = state.wram.clone();
+    self.ppu_mem = state.ppu_mem.clone();
+    self.mapper = state.mapper.clone();
   }
 
   pub fn oam_dma_tick(&mut self) -> bool {

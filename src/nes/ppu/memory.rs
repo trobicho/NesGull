@@ -38,7 +38,7 @@ impl Oam {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PPUMemory {
   ctrl: u8,
   mask: u8,

@@ -51,27 +51,27 @@ pub struct NesHeader {
 
 impl fmt::Display for NesHeader {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    writeln!(f, "PRG-ROM size: {:#06x}", self.prg_rom_size);
-    writeln!(f, "CHR-ROM size: {:#06x}", self.chr_rom_size);
+    writeln!(f, "PRG-ROM size: {:#06x}", self.prg_rom_size).unwrap();
+    writeln!(f, "CHR-ROM size: {:#06x}", self.chr_rom_size).unwrap();
 
-    writeln!(f, "Mirroring_type: {}", self.mirroring_type);
-    writeln!(f, "Battery: {}", self.battery);
-    writeln!(f, "Trainer: {}", self.trainer);
-    writeln!(f, "Mapper num: {}", self.mapper_num);
+    writeln!(f, "Mirroring_type: {}", self.mirroring_type).unwrap();
+    writeln!(f, "Battery: {}", self.battery).unwrap();
+    writeln!(f, "Trainer: {}", self.trainer).unwrap();
+    writeln!(f, "Mapper num: {}", self.mapper_num).unwrap();
 
-    writeln!(f, "Console type: {:?}", self.console_type);
-    writeln!(f, "Nes2: {}", self.nes2);
+    writeln!(f, "Console type: {:?}", self.console_type).unwrap();
+    writeln!(f, "Nes2: {}", self.nes2).unwrap();
 
-    writeln!(f, "Submapper num: {}", self.submapper_num);
+    writeln!(f, "Submapper num: {}", self.submapper_num).unwrap();
 
-    writeln!(f, "EEPROM size: {:#06x}", self.eeprom_size);
-    writeln!(f, "PRG-RAM size: {:#06x}", self.prg_ram_size);
-    writeln!(f, "CHR-RAM size: {:#06x}", self.chr_ram_size);
-    writeln!(f, "CHR-NVRRAM size: {:#06x}", self.chr_nvram_size);
+    writeln!(f, "EEPROM size: {:#06x}", self.eeprom_size).unwrap();
+    writeln!(f, "PRG-RAM size: {:#06x}", self.prg_ram_size).unwrap();
+    writeln!(f, "CHR-RAM size: {:#06x}", self.chr_ram_size).unwrap();
+    writeln!(f, "CHR-NVRRAM size: {:#06x}", self.chr_nvram_size).unwrap();
 
-    writeln!(f, "Timing type: {:?}", self.timing_type);
-    writeln!(f, "Misc. roms: {}", self.misc_roms);
-    writeln!(f, "Expension device: {}", self.default_exp_device);
+    writeln!(f, "Timing type: {:?}", self.timing_type).unwrap();
+    writeln!(f, "Misc. roms: {}", self.misc_roms).unwrap();
+    writeln!(f, "Expension device: {}", self.default_exp_device).unwrap();
     Ok(())
   }
 }

@@ -2,6 +2,7 @@ mod cpu;
 pub mod ppu;
 pub mod apu;
 mod memory;
+pub mod save_state;
 mod bus;
 mod mapper;
 pub mod cartridge;
@@ -11,6 +12,7 @@ mod clock;
 use std::error::Error;
 
 use bus::Bus;
+use save_state::SaveState;
 use cpu::CPU;
 use ppu::{PPU, PPUInfo};
 use apu::{APU};
@@ -20,6 +22,7 @@ use clock::{Clock, SlaveClock};
 use controller::Controller;
 use mapper::{Mapper};
 
+#[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub enum DebugEvent {
   SHOW_PPU_REG,
@@ -188,5 +191,16 @@ impl Nes {
       //DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
       _ => (),
     }
+  }
+
+  pub fn debug_save_state(&self) -> SaveState {
+    let mut state = self.bus.save_state();
+    state.cpu_reg = self.cpu.save_reg_state();
+    state
+  }
+
+  pub fn debug_load_state(&mut self, state: &SaveState) {
+    self.bus.load_state(state);
+    self.cpu.load_reg_state(&state.cpu_reg);
   }
 }

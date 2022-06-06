@@ -9,7 +9,7 @@ use std::error::Error;
 use std::time::Duration;
 use std::time::Instant;
 
-use nes::{Nes, DebugEvent};
+use nes::{Nes, DebugEvent, save_state::SaveState};
 use nes::cartridge::Cartridge;
 use nes::controller::{basic::NesController};
 use nes::apu::mixer::Mixer;
@@ -22,7 +22,7 @@ use sdl2::controller::GameController;
 use sdl2::GameControllerSubsystem;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
-const millis_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
+const micros_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
 
 fn find_sdl_gl_driver() -> Option<u32> {
   for (index, item) in sdl2::render::drivers().enumerate() {
@@ -43,27 +43,24 @@ fn find_controller(game_controller_subsystem: &GameControllerSubsystem) -> Resul
   // Iterate over all available joysticks and look for game controllers.
   let mut controller = (0..available)
     .find_map(|id| {
-        if !game_controller_subsystem.is_game_controller(id) {
+      if !game_controller_subsystem.is_game_controller(id) {
         println!("{} is not a game controller", id);
         return None;
-        }
+      }
+      println!("Attempting to open controller {}", id);
 
-        println!("Attempting to open controller {}", id);
-
-        match game_controller_subsystem.open(id) {
+      match game_controller_subsystem.open(id) {
         Ok(c) => {
-        // We managed to find and open a game controller,
-        // exit the loop
-        println!("Success: opened \"{}\"", c.name());
-        Some(c)
+          println!("Success: opened \"{}\"", c.name());
+          Some(c)
         }
         Err(e) => {
-        println!("failed: {:?}", e);
-        None
+          println!("failed: {:?}", e);
+          None
         }
-        }
-        })
-  .expect("Couldn't open any controller");
+      }
+    })
+    .expect("Couldn't open any controller");
   println!("Controller mapping: {}", controller.mapping());
   Ok(controller)
 }
@@ -125,6 +122,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     .create_texture_target(None, ppu_info.frame_w as u32, ppu_info.frame_h as u32)
     .map_err(|e| e.to_string())?;
 
+  sdl_context.mouse().show_cursor(false);
   let (height, width) = canvas.output_size()?;
   let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
@@ -134,6 +132,8 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut frame_nb = 0;
   let mut time = Instant::now();
   let mut last_time = time;
+  let mut save_state: Option<SaveState> = None;
+
   while running {
     for event in event_pump.poll_iter() {
       match event {
@@ -179,13 +179,21 @@ fn main() -> Result<(), Box<dyn Error>>{
           cpu_debug = !cpu_debug;
           nes.set_cpu_debug(cpu_debug);
         },
+        Event::KeyDown {keycode: Some(Keycode::C), ..} => {
+          save_state = Some(nes.debug_save_state());
+        },
+        Event::KeyDown {keycode: Some(Keycode::V), ..} => {
+          if let Some(ref state) = save_state {
+            nes.debug_load_state(&state);
+          }
+        },
         _ => {},
       }
     }
     if run {
       let elapsed = time.elapsed().as_micros();
-      if elapsed < millis_per_frame {
-        std::thread::sleep(Duration::from_micros((millis_per_frame - elapsed).try_into().unwrap()));
+      if elapsed < micros_per_frame {
+        std::thread::sleep(Duration::from_micros((micros_per_frame - elapsed).try_into().unwrap()));
       }
       time = Instant::now();
       nes.tick_frame();

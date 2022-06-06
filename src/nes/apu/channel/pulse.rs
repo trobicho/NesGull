@@ -8,7 +8,7 @@ use crate::nes::{
 };
 
 /*
-const sequence_lookup_table: [[u8; 8]; 4] = [
+const SEQUENCE_LOOKUP_TABLE: [[u8; 8]; 4] = [
   [0, 0, 0, 0, 0, 0, 0, 1],
   [0, 0, 0, 0, 0, 0, 1, 1],
   [0, 0, 0, 0, 1, 1, 1, 1],
@@ -16,7 +16,7 @@ const sequence_lookup_table: [[u8; 8]; 4] = [
 ];
 */
 
-const sequence_lookup_table: [[u8; 8]; 4] = [
+const SEQUENCE_LOOKUP_TABLE: [[u8; 8]; 4] = [
   [0, 1, 0, 0, 0, 0, 0, 0],
   [0, 1, 1, 0, 0, 0, 0, 0],
   [0, 1, 1, 1, 1, 0, 0, 0],
@@ -127,7 +127,7 @@ impl Pulse {
     else {
       self.reg.timer -= 1;
     }
-    let mut seq = sequence_lookup_table[self.duty_index % 4][self.reg.duty_cycle as usize];
+    let mut seq = SEQUENCE_LOOKUP_TABLE[self.duty_index % 4][self.reg.duty_cycle as usize];
     if self.reg.LC_load == 0 || self.reg.timer < 8 {
       seq = 0;
     }

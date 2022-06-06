@@ -8,8 +8,8 @@ use crate::nes::{
 };
 
 
-#[derive(Debug)]
-struct StatusReg {
+#[derive(Debug, Copy, Clone)]
+pub struct StatusReg {
   //7654 3210
   //NVss DIZC
 
@@ -104,8 +104,8 @@ impl StatusReg {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug)]
-struct Reg {
+#[derive(Debug, Copy, Clone)]
+pub struct Reg {
   A: u8,
   X: u8,
   Y: u8,
@@ -115,7 +115,7 @@ struct Reg {
 }
 
 impl Reg {
-  fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       A: 0x0,
       X: 0x0,
@@ -234,6 +234,14 @@ impl CPU {
       instr_op_load: false,
       debug: false,
     }
+  }
+
+  pub(super) fn load_reg_state(&mut self, reg: &Reg) {
+    self.reg = *reg;
+  }
+
+  pub(super) fn save_reg_state(&self) -> Reg {
+    self.reg
   }
 
   pub fn reset_cycles_frame(&mut self) {

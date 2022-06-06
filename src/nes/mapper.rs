@@ -73,7 +73,7 @@ pub enum MapperType {
 }
 
 #[enum_dispatch(MapperType)]
-pub trait Mapper: MemRead + MemWrite {
+pub trait Mapper: Clone + MemRead + MemWrite {
   fn irq_pending(&mut self) -> bool {
     false
   }

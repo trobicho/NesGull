@@ -10,7 +10,7 @@ const PRG_RAM_WINDOW: usize = 8 * 1024;
 const PRG_RAM_SIZE: usize = 8 * 1024;
 const PRG_ROM_WINDOW: usize = 16 * 1024;
 const CHR_WINDOW: usize = 4 * 1024;
-const CHR_SIZE: usize = 128 * 1024;
+const CHR_SIZE: usize = 8 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct MMC1 {
@@ -60,7 +60,7 @@ impl MMC1 {
     mmc1.prg_rom.add_bank_range(0x8000, 0xFFFF);
     mmc1.prg_rom.set_bank(0xC000, mmc1.prg_rom.last_bank());
     mmc1.chr.add_bank_range(0x0000, 0x1FFF);
-    mmc1.control_write(0b01110);
+    mmc1.control_write(0b11110);
     mmc1.into()
   }
 }
