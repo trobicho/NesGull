@@ -26,8 +26,8 @@ impl APU {
   pub fn new() -> Self {
     Self {
       channels: vec![
-        Pulse::new(0x4000),
-        Pulse::new(0x4004),
+        Pulse::new(0x4000, true),
+        Pulse::new(0x4004, false),
       ],
       debug_count: 0,
       next_sample_output: SAMPLE_STEP.trunc() as u32,
@@ -40,10 +40,14 @@ impl APU {
     bus.apu_mem.tick();
     let mut r: f32 = 0f32;
     let mut has_sound: bool = false;
+    let mut status = bus.apu_mem.status;
 
     for channel in &mut self.channels {
+      if status & 1 == 1 {
         let temp_r = channel.tick(bus);
         r += temp_r as f32;
+      }
+      status >>= 1;
     }
     self.output += r / 128.0;
 

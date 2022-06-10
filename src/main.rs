@@ -138,10 +138,7 @@ fn main() -> Result<(), Box<dyn Error>>{
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit { .. }
-        | Event::KeyDown {
-            keycode: Some(Keycode::Escape),
-           ..
-        } => {
+        | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
           running = false;
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
