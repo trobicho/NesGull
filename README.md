@@ -1,5 +1,5 @@
 # NesGull
-Nes emulator in Rust
+Nes emulator in Rust (made in part to learn the language)
 
 
 Unfinished project work with Some roms NRoms/UXRoms perhaps gonna finish it one day ^^
