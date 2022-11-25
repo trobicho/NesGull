@@ -93,13 +93,13 @@ impl Register {
     self.LC_load = channel_reg[3] >> 3;
   }
 
-  fn sweep_apply(&mut self) -> i16 {
+  /*fn sweep_apply(&mut self) -> i16 {
     let mut change_amount: i8 = (self.timer >> self.sweep.shift_count) as i8;
     if self.sweep.neg {
       change_amount = if self.neg_1_compl_behavior {-change_amount - 1} else {-change_amount};
     }
     let target_period: i16 = (change_amount as i16) + (self.timer as i16)
-  }
+  }*/
 }
 
 #[derive(Clone)]

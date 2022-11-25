@@ -175,7 +175,7 @@ impl PPU {
   }
 
   fn scanline_fetch(&mut self, bus: &mut Bus) {
-    if self.cycle_n < 258 || (self.cycle_n > 320  && self.cycle_n <= 336){
+    if self.cycle_n < 258 || (self.cycle_n > 320  && self.cycle_n <= 336) {
       if self.cycle_n == 256 {
         self.vert_inc(bus);
       }

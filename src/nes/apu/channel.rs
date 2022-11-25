@@ -1,4 +1,5 @@
 pub mod pulse;
+pub mod triangle;
 
 use std::fmt;
 use enum_dispatch::enum_dispatch;
@@ -10,6 +11,7 @@ use crate::nes::{
 };
 
 use pulse::Pulse;
+use triangle::Triangle;
 
 #[derive(Debug, Clone)]
 pub struct NullChannel {}
@@ -20,7 +22,7 @@ pub struct NullChannel {}
 pub enum ChannelType{
   NullChannel,
   Pulse,
-  //Triangle,
+  Triangle,
   //Noise,
   //DMC,
 }

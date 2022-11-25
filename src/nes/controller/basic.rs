@@ -99,6 +99,7 @@ impl Controller for NesController {
     self.B = self.controller.button(Button::X);
     self.Start = self.controller.button(Button::Start);
     self.Select = self.controller.button(Button::Back);
+    self.Select = self.controller.button(Button::LeftShoulder);
     self.DPad.0 = self.controller.button(Button::DPadUp);
     self.DPad.1 = self.controller.button(Button::DPadDown);
     self.DPad.2 = self.controller.button(Button::DPadLeft);
