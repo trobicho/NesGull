@@ -27,8 +27,8 @@ impl APU {
   pub fn new() -> Self {
     Self {
       channels: vec![
-        //Pulse::new(0x4000, true),
-        //Pulse::new(0x4004, false),
+        Pulse::new(0x4000, true),
+        Pulse::new(0x4004, false),
         Triangle::new(0x4008),
       ],
       debug_count: 0,
