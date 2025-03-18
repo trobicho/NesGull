@@ -79,8 +79,26 @@ impl fmt::Display for NesHeader {
 impl NesHeader {
   pub fn new(header: &[u8]) -> Self {
     Self {
-      prg_rom_size: (header[4] as usize) * 16 * 1024,
-      chr_rom_size: (header[5] as usize) * 8 * 1024,
+      prg_rom_size: {
+        if (header[9] & 0b00001111) == 0xF {
+          (2 << (((header[4] & 0b1111_1100) as usize) >> 2)) * ((header[4] & 0b0000_0011) * 2 + 1) as usize
+        }
+        else {
+          (((header[9] & 0b00001111) as usize) << 8) | (header[4] as usize)
+        }
+      },
+      chr_rom_size: {
+        if ((header[9] & 0b11110000) >> 4) == 0xF {
+          (2 << (((header[5] & 0b1111_1100) as usize) >> 2)) * ((header[5] & 0b0000_0011) * 2 + 1) as usize
+        }
+        else {
+          (((header[9] & 0b11110000) as usize) << 4) | (header[5] as usize)
+        }
+      },
+          
+
+      //prg_rom_size: (header[4] as usize) * 16 * 1024,
+      //chr_rom_size: (header[5] as usize) * 8 * 1024,
       mirroring_type: {
         let mut m_type = MirroringType::Horizontal;
         if header[6] & 0b0000_0001 != 0 {
