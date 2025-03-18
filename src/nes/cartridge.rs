@@ -107,14 +107,14 @@ impl NesHeader {
           _ => ConsoleType::NES,
         }
       },
-      nes2: if header[7] & 0b0000_1100 == 2 {true} else {false},
+      nes2: if header[7] & 0b0000_1100 == 8 {true} else {false},
       submapper_num: (header[8] & 0b1111_0000) >> 4,
       eeprom_size: if header[10] & 0b0000_1111 == 0 {0} else {64 << ((header[10] & 0b0000_1111) as usize)},
       prg_ram_size: if header[10] & 0b1111_0000 == 0 {0} else {64 << (((header[10] & 0b1111_0000) >> 4) as usize)},
       chr_ram_size: if header[11] & 0b0000_1111 == 0 {0} else {64 << ((header[11] & 0b0000_1111) as usize)},
       chr_nvram_size: if header[11] & 0b1111_0000 == 0 {0} else {64 << (((header[11] & 0b1111_0000) >> 4) as usize)},
       timing_type: {
-        match header[7] & 0b0000_0011 {
+        match header[12] & 0b0000_0011 {
           0 => TimingType::NTSC_NES,
           1 => TimingType::PAL_NES,
           2 => TimingType::MUL_REG,
