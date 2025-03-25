@@ -1,5 +1,5 @@
-#![allow(dead_code)]
 extern crate sdl2;
+extern crate cpal;
 
 mod nes;
 mod rom;
@@ -9,9 +9,10 @@ use std::error::Error;
 use std::time::Duration;
 use std::time::Instant;
 
-use nes::{Nes, DebugEvent};
+use nes::{Nes, DebugEvent, save_state::SaveState};
 use nes::cartridge::Cartridge;
-use nes::controller::{Controller, basic::NesController};
+use nes::controller::{basic::NesController};
+use nes::apu::mixer::Mixer;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -19,8 +20,9 @@ use sdl2::render::{TextureCreator};
 use sdl2::rect::Rect;
 use sdl2::controller::GameController;
 use sdl2::GameControllerSubsystem;
+use cpal::traits::{DeviceTrait, HostTrait};
 
-const millis_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
+const micros_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
 
 fn find_sdl_gl_driver() -> Option<u32> {
   for (index, item) in sdl2::render::drivers().enumerate() {
@@ -39,29 +41,26 @@ fn find_controller(game_controller_subsystem: &GameControllerSubsystem) -> Resul
   println!("{} joysticks available", available);
 
   // Iterate over all available joysticks and look for game controllers.
-  let mut controller = (0..available)
+  let controller = (0..available)
     .find_map(|id| {
-        if !game_controller_subsystem.is_game_controller(id) {
+      if !game_controller_subsystem.is_game_controller(id) {
         println!("{} is not a game controller", id);
         return None;
-        }
+      }
+      println!("Attempting to open controller {}", id);
 
-        println!("Attempting to open controller {}", id);
-
-        match game_controller_subsystem.open(id) {
+      match game_controller_subsystem.open(id) {
         Ok(c) => {
-        // We managed to find and open a game controller,
-        // exit the loop
-        println!("Success: opened \"{}\"", c.name());
-        Some(c)
+          println!("Success: opened \"{}\"", c.name());
+          Some(c)
         }
         Err(e) => {
-        println!("failed: {:?}", e);
-        None
+          println!("failed: {:?}", e);
+          None
         }
-        }
-        })
-  .expect("Couldn't open any controller");
+      }
+    })
+    .expect("Couldn't open any controller");
   println!("Controller mapping: {}", controller.mapping());
   Ok(controller)
 }
@@ -80,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   let mut event_pump = sdl_context.event_pump()?;
   let game_controller_subsystem = sdl_context.game_controller()?;
-  let mut controller = NesController::new(find_controller(&game_controller_subsystem)?, 0);
+  let controller = NesController::new(find_controller(&game_controller_subsystem)?, 0);
 
   let args: Vec<String> = env::args().collect();
   println!("{:?}", args);
@@ -100,11 +99,18 @@ fn main() -> Result<(), Box<dyn Error>>{
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/other/nestest.nes")?;
   //let nes_rom = rom::nes_rom_load("./nes-test-roms/scanline/scanline.nes")?;
   //let nes_rom = rom::nes_rom_load("././nes-test-roms/nmi_sync/demo_ntsc.nes")?;
-  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller))?;
+  let audio_host = cpal::default_host();
+  let audio_device = audio_host.default_output_device().expect("failed to find output device");
+  println!("Audio output device: {}", audio_device.name()?);
+
+  let audio_config = audio_device.default_output_config().unwrap();
+  println!("Audio default output config: {:?}", audio_config);
+
+  let mut nes = Nes::new(Cartridge::create_from_rom(&nes_rom), Box::new(controller), Mixer::new(audio_device, audio_config))?;
   nes.reset();
   //nes.debug_reset();
-  nes.load_palette("./palettes/ntscpalette.pal")?;
-  //nes.load_palette("./palettes/SMM Palette 1.0.pal")?;
+  //nes.load_palette("./palettes/ntscpalette.pal")?;
+  nes.load_palette("./palettes/SMM Palette 1.0.pal")?;
   //println!("=============================");
   //nes.show_mem();
   //nes.run();
@@ -116,23 +122,23 @@ fn main() -> Result<(), Box<dyn Error>>{
     .create_texture_target(None, ppu_info.frame_w as u32, ppu_info.frame_h as u32)
     .map_err(|e| e.to_string())?;
 
+  sdl_context.mouse().show_cursor(false);
   let (height, width) = canvas.output_size()?;
   let frame_rect = Rect::new(0, 0, width as u32, height as u32);
   let mut running = true;
-  let mut run = false;
+  let mut run = true;
   let mut show_nametable = false;
   let mut cpu_debug = false;
   let mut frame_nb = 0;
   let mut time = Instant::now();
-  let mut last_time = time;
+  let last_time = time;
+  let mut save_state: Option<SaveState> = None;
+
   while running {
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit { .. }
-        | Event::KeyDown {
-            keycode: Some(Keycode::Escape),
-           ..
-        } => {
+        | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
           running = false;
         },
         Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
@@ -150,8 +156,12 @@ fn main() -> Result<(), Box<dyn Error>>{
         Event::KeyDown {keycode: Some(Keycode::W), ..} => {
           nes.debug_event(DebugEvent::SHOW_CPU_WRAM);
         },
+        Event::KeyDown {keycode: Some(Keycode::A), ..} => {
+          nes.debug_event(DebugEvent::SHOW_APU_REG);
+        },
         Event::KeyDown {keycode: Some(Keycode::M), ..} => {
-          nes.debug_event(DebugEvent::SHOW_PPU_VRAM);
+          //nes.debug_event(DebugEvent::SHOW_PPU_VRAM);
+          nes.debug_event(DebugEvent::MUTE_GAME);
         },
         Event::KeyDown {keycode: Some(Keycode::P), ..} => {
           nes.debug_event(DebugEvent::SHOW_PPU_PALETTE);
@@ -166,22 +176,30 @@ fn main() -> Result<(), Box<dyn Error>>{
           cpu_debug = !cpu_debug;
           nes.set_cpu_debug(cpu_debug);
         },
+        Event::KeyDown {keycode: Some(Keycode::C), ..} => {
+          save_state = Some(nes.debug_save_state());
+        },
+        Event::KeyDown {keycode: Some(Keycode::V), ..} => {
+          if let Some(ref state) = save_state {
+            nes.debug_load_state(&state);
+          }
+        },
         _ => {},
       }
     }
     if run {
       let elapsed = time.elapsed().as_micros();
-      if elapsed < millis_per_frame {
-        std::thread::sleep(Duration::from_micros((millis_per_frame - elapsed).try_into().unwrap()));
+      if elapsed < micros_per_frame {
+        std::thread::sleep(Duration::from_micros((micros_per_frame - elapsed).try_into().unwrap()));
       }
       time = Instant::now();
       nes.tick_frame();
       frame_nb += 1;
-      println!("frame: {}", frame_nb);
+      //println!("frame: {}", frame_nb);
     }
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();
-    let frame = if (show_nametable) {nes.get_debug_frame()} else {nes.get_frame()};
+    let frame = if show_nametable {nes.get_debug_frame()} else {nes.get_frame()};
     frame_texture.update(None, frame.get_texture_buffer(), frame.width * 4)?;
     canvas.copy(&frame_texture, None, None)?;
     canvas.present();

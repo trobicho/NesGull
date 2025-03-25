@@ -2,14 +2,15 @@ use std::fmt;
 
 use crate::Cartridge;
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory, BankableMemory},
+  memory::{MemRead, MemWrite, BankableMemory},
   mapper::{Mapper, MapperType, MirroringType},
 };
 
 const PRG_RAM_WINDOW: usize = 8 * 1024;
+const PRG_RAM_SIZE: usize = 8 * 1024;
 const PRG_ROM_WINDOW: usize = 16 * 1024;
 const CHR_WINDOW: usize = 4 * 1024;
-const CHR_SIZE: usize = 128 * 1024;
+const CHR_SIZE: usize = 8 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct MMC1 {
@@ -33,13 +34,20 @@ impl fmt::Display for MMC1 {
 impl MMC1 {
   pub fn load(cartridge: &Cartridge) -> MapperType {
     let mut mmc1 = Self {
-      prg_ram: BankableMemory::ram(cartridge.header.prg_ram_size, PRG_RAM_WINDOW),
+      prg_ram: {
+        if cartridge.header.prg_ram_size == 0 {
+          BankableMemory::ram(PRG_RAM_SIZE, PRG_RAM_WINDOW)
+        }
+        else {
+          BankableMemory::ram(cartridge.header.prg_ram_size, PRG_RAM_WINDOW)
+        }
+      },
       prg_rom: BankableMemory::rom_from_bytes(&cartridge.prg_rom, PRG_ROM_WINDOW),
       chr: {match &cartridge.chr_rom {
         Some(chr_rom) => {
           BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (BankableMemory::ram(CHR_SIZE, CHR_WINDOW))
+        None => BankableMemory::ram(CHR_SIZE, CHR_WINDOW)
       }},
       mirroring: cartridge.header.mirroring_type,
       shift_reg: 0b0001_0000,
@@ -52,7 +60,7 @@ impl MMC1 {
     mmc1.prg_rom.add_bank_range(0x8000, 0xFFFF);
     mmc1.prg_rom.set_bank(0xC000, mmc1.prg_rom.last_bank());
     mmc1.chr.add_bank_range(0x0000, 0x1FFF);
-    mmc1.control_write(0b01110);
+    mmc1.control_write(0b11110);
     mmc1.into()
   }
 }
@@ -65,7 +73,6 @@ impl Mapper for MMC1 {
   }
 
   fn mirroring(&self) -> MirroringType {
-    println!("{}", self.mirroring);
     self.mirroring
   }
   fn irq_pending(&mut self) -> bool {
@@ -89,7 +96,7 @@ impl MemRead for MMC1 {
     match addr {
       0x0000..=0x1FFF => self.chr.read(addr),
       0x6000..=0x7FFF => {
-        if (self.prg_bank & 0b10000 == 0) {
+        if self.prg_bank & 0b10000 == 0 {
           self.prg_ram.read(addr)
         }
         else {
@@ -105,11 +112,12 @@ impl MemRead for MMC1 {
 
 impl MemWrite for MMC1 {
   fn write(&mut self, addr: usize, value: u8) {
-    //print!("write {:#06x} = ({:#010b})", addr, value);
+    //println!("write {:#06x} = ({:#010b})", addr, value);
     match addr {
       0x0000..=0x1FFF => self.chr.write(addr, value),
       0x6000..=0x7FFF => {
-        if (self.prg_bank & 0b10000 == 0) {
+        //println!("prg_ram");
+        if self.prg_bank & 0b10000 == 0 {
           self.prg_ram.write(addr, value);
         }
       },
@@ -119,10 +127,10 @@ impl MemWrite for MMC1 {
             self.control_write(self.control | 0xC);
         }
         else {
-          if (self.shift_reg & 1 == 1) {
+          if self.shift_reg & 1 == 1 {
             let v: u8 = self.shift_reg.wrapping_shr(1) | ((value & 1) << 4);
             match addr & 0b01110_0000_0000_0000 {
-              0x8000 => self.control_write(v),
+              0x8000 => {print!("addr "); self.control_write(v)},
               0xA000 => self.chr_bank_write(v, false),
               0xC000 => self.chr_bank_write(v, true),
               0xE000 => self.prg_bank_write(v),
@@ -151,6 +159,7 @@ impl MMC1 {
       3 => self.mirroring = MirroringType::Horizontal,
       _ => (),
     }
+    println!("mirroring change to: {}", self.mirroring);
     match self.control & 0xC {
       0 | 0x4 => {
         let bank_n = self.prg_bank & 0b0001_1110;
@@ -188,7 +197,7 @@ impl MMC1 {
   fn chr_bank_write(&mut self, v: u8, bank1: bool) {
     if !bank1 {
       self.chr_bank0 = v & 0b0001_1111;
-      let bank_n = self.chr_bank0 & if self.control & 0x10 == 0x10 {0b11110} else {0b11111};
+      let bank_n = self.chr_bank0 & (if self.control & 0x10 == 0x10 {0b11110} else {0b11111});
       self.chr.set_bank(0x0000, bank_n.into());
       if self.control & 0x10 == 0x10 {
         self.chr.set_bank(0x1000, (bank_n | 1).into());

@@ -13,7 +13,7 @@ use memory::*;
 
 use std::error::Error;
 
-const FRAME_HEIGHT_NTSC: usize = 224;
+const FRAME_HEIGHT_NTSC: usize = 240;
 const FRAME_HEIGHT_PAL: usize = 240;
 const FRAME_WIDTH: usize = 256;
 const PATTERN_TABLE_ADDR: u16 = 0x0000;
@@ -73,13 +73,12 @@ pub struct PPU {
   reg: Register,
   frame_finish: bool,
   frame_n: u32,
-  nmi_flag: bool,
   cur_oam: usize,
   sprite_overflow: bool,
   oam_offset: usize,
 }
 
-impl Clock for PPU {
+impl Clock<bool> for PPU {
   fn tick(&mut self, bus: &mut Bus) -> bool {
     let mut r = false;
     //self.debug_print(bus);
@@ -112,7 +111,6 @@ impl PPU {
       reg: Register::new(),
       frame_finish: false,
       frame_n: 0,
-      nmi_flag: false,
       cur_oam: 0,
       sprite_overflow: false,
       oam_offset: 0,
@@ -128,12 +126,6 @@ impl PPU {
 
   pub fn get_frame_status(&self) -> bool {
     self.frame_finish
-  }
-
-  pub fn get_nmi_flag(&mut self) -> bool {
-    let b = self.nmi_flag;
-    self.nmi_flag = false;
-    b
   }
 
   //DCBA98 76543210
@@ -183,7 +175,7 @@ impl PPU {
   }
 
   fn scanline_fetch(&mut self, bus: &mut Bus) {
-    if self.cycle_n < 258 || (self.cycle_n > 320  && self.cycle_n <= 336){
+    if self.cycle_n < 258 || (self.cycle_n > 320  && self.cycle_n <= 336) {
       if self.cycle_n == 256 {
         self.vert_inc(bus);
       }
@@ -192,7 +184,6 @@ impl PPU {
       }
       match self.work_cycle {
         0 => {
-          self.reg.load_shift_reg();
           //println!("{}: {:#018b}, {:#018b} v={:#06x}", self.cycle_n, self.reg.shift_back_16[0], self.reg.shift_back_16[1], bus.ppu_mem.v);
         },
         1 => {self.read_NT_byte(bus);}, //fetch NT_byte
@@ -214,10 +205,18 @@ impl PPU {
   }
 
   fn bg_color(&mut self, bus: &mut Bus) -> (usize, bool) {
-    let mut color_index : u16 = (self.reg.shift_back_16[0] & 1) | ((self.reg.shift_back_16[1] & 1) << 1);
+    let x = bus.ppu_mem.x;
+    let mut color_index : u16 = ((self.reg.shift_back_16[0] >> x) & 1) | (((self.reg.shift_back_16[1] >> x) & 1) << 1);
     if color_index != 0 {
-      let quadrant: u16 = (bus.ppu_mem.v & 1) | ((bus.ppu_mem.v & 0b0000_0000_0010_0000) >> 4);
-      color_index += ((((self.reg.shift_back_8[0] >> (quadrant << 1)) & 3) << 2) as u16);
+      let mut addr = (0x2000 | (bus.ppu_mem.v & 0x0FFF)) - 2;
+      let mut attr = self.reg.shift_back_8[0];
+      if (self.work_cycle as u8) + x >= 8 {
+        addr += 1;
+        attr = self.reg.shift_back_8[1];
+      }
+      addr = bus.ppu_mem.mirroring(addr.into()) as u16;
+      let quadrant: u16 = ((addr & 2) >> 1) | ((addr & 0b0000_0000_0100_0000) >> 5);
+      color_index += (((attr >> (quadrant << 1)) & 3) << 2) as u16;
       //println!("quadrant = {} {:#4x} {} {}", quadrant, color_index, (self.reg.shift_back_8[0] >> (quadrant << 1)) & 3, (self.reg.shift_back_16[0] & 1) | ((self.reg.shift_back_16[1] & 1) << 1));
       (color_index as usize, true)
     }
@@ -230,21 +229,20 @@ impl PPU {
     let mut color_index: u16 = 0;
     let mut priority = false;
     let mut sprite0 = false;
+    let mut find_color = false;
 
     let mut i = 0;
     while i < 8 {
-      if (self.reg.counter_sprite[i].0 == 0 && self.reg.counter_sprite[i].1 < 8) {
-        if self.reg.counter_sprite[i].2 {
-          sprite0 = true;
-        }
-        color_index = ((self.reg.shift_sprite_low[i] & 1) | ((self.reg.shift_sprite_high[i] & 1) << 1)).into();
-        if color_index != 0 {
-          color_index += (((self.reg.latch_sprite[i] & 3) << 2) as u16);
-          priority = if self.reg.latch_sprite[i] & 0b0001_0000 != 0 {false} else {true};
+      if self.reg.counter_sprite[i].0 == 0 && self.reg.counter_sprite[i].1 < 8 {
+        let temp_color_index: u16 = ((self.reg.shift_sprite_low[i] & 1) | ((self.reg.shift_sprite_high[i] & 1) << 1)).into();
+        if temp_color_index != 0  && (!find_color || !priority) {
+          if self.reg.counter_sprite[i].2 {
+            sprite0 = true;
+          }
+          color_index = temp_color_index + (((self.reg.latch_sprite[i] & 3) << 2) as u16);
+          priority = if self.reg.latch_sprite[i] & 0b0010_0000 != 0 {false} else {true};
           color_index += 0x10;
-        }
-        else {
-          sprite0 = false;
+          find_color = true;
         }
         self.reg.shift_sprite_low[i] >>= 1;
         self.reg.shift_sprite_high[i] >>= 1;
@@ -271,33 +269,35 @@ impl PPU {
     }
 
     let mut index: usize = (bus.ppu_read((bg_color + 0x3F00) as usize) % 64) as usize;
-    index = if (bus.ppu_mem.read_ctrl() & 1 == 1) {index & 0x30} else {index};
+    index = if bus.ppu_mem.read_ctrl() & 1 == 1 {index & 0x30} else {index};
     let mut color = self.palette.color[index];
 
     if sprite0 && opaque_bg {
       bus.ppu_mem.set_sprite_0hit(true);
-      //println!("sprite_0hit {}", self.scanline_n);
     }
-    if priority && sp_color != 0x00 {
+    if (priority && sp_color != 0x00) || !opaque_bg {
       let mut index: usize = (bus.ppu_read((sp_color + 0x3F00) as usize) % 64) as usize;
-      index = if (bus.ppu_mem.read_ctrl() & 1 == 1) {index & 0x30} else {index};
+      index = if bus.ppu_mem.read_ctrl() & 1 == 1 {index & 0x30} else {index};
       color = self.palette.color[index];
     }
-    self.frame.put_pixel(self.cycle_n as usize, self.scanline_n as usize, color);
+    self.frame.put_pixel((self.cycle_n - 1) as usize, self.scanline_n as usize, color);
   }
 
   fn handle_scanline(&mut self, bus: &mut Bus) -> bool{
     match self.scanline_n {
       0..=239 => {
+        if self.work_cycle == 0 {
+          self.reg.load_shift_reg();
+        }
+        if self.cycle_n < 257 && self.scanline_n < self.frame.height as u32 {
+          self.scanline_render(bus);
+          self.reg.counter_dec();
+        }
         if bus.ppu_mem.read_mask() & 0b0000_1000 != 0 {
           self.scanline_fetch(bus);
         }
         if bus.ppu_mem.read_mask() & 0b0001_0000 != 0 {
           self.oam_handle(bus);
-        }
-        if self.cycle_n < 256  && self.scanline_n < 224 {
-          self.scanline_render(bus);
-          self.reg.counter_dec();
         }
       },
       261 => {self.scanline_261(bus);},
@@ -349,12 +349,14 @@ impl PPU {
     self.oam_offset = 0;
   }
 
-  fn sprite_y_in_range(&self, bus: &mut Bus, sprite_y: u32) -> bool{
-    //let max = if (bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0) {16} else {8};
-    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + 8{
-      true
+  fn sprite_y_in_range(&self, bus: &mut Bus, sprite_y: u32) -> (bool, bool){
+    let max = if bus.ppu_mem.read_ctrl() & 0b0010_0000 != 0 {16} else {8};
+    if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + 8 {
+      (true, false)
+    } else if self.scanline_n >= sprite_y && self.scanline_n < sprite_y + max {
+      (true, true)
     } else {
-      false
+      (false, false)
     }
   }
 
@@ -362,9 +364,10 @@ impl PPU {
     if self.cur_oam < 64 {
       let sprite_y = bus.ppu_mem.oam_read(self.cur_oam, self.oam_offset);
 
-      if !self.sprite_overflow && self.sprite_y_in_range(bus, sprite_y.into()) {
+      let (in_range, next_tile) = self.sprite_y_in_range(bus, sprite_y.into());
+      if !self.sprite_overflow && in_range {
         self.sprite_overflow = !self.reg.oam_add(Oam{
-          y: sprite_y, 
+          y: sprite_y,
           tile: bus.ppu_mem.oam_read(self.cur_oam, 1),
           attr: bus.ppu_mem.oam_read(self.cur_oam, 2),
           x: bus.ppu_mem.oam_read(self.cur_oam, 3),
@@ -373,7 +376,7 @@ impl PPU {
       }
       self.cur_oam += 1;
       if self.sprite_overflow {
-        if self.sprite_y_in_range(bus, sprite_y.into()) {
+        if in_range {
           bus.ppu_mem.set_sprite_overflow(true);
         }
         else {
@@ -386,18 +389,37 @@ impl PPU {
 
   fn load_SP(&mut self, bus: &mut Bus) {
     let ctrl = bus.ppu_mem.read_ctrl();
+    let mode_16 = ctrl & 0b0010_0000 != 0;
+
     for i in 0..8 {
       let oam = self.reg.oam_secondary[i];
-      if (oam.y != 0xFF) {
-        let mut addr: usize = ((oam.tile as u16) << 4) as usize;
-        if ctrl & 0b0010_0000 == 0 && ctrl & 0b0000_1000 != 0 {
+      if oam.y != 0xFF {
+        let mut addr: usize = {
+          if !mode_16 {
+            ((oam.tile as u16) << 4) as usize
+          }
+          else {
+            (((oam.tile as u16) & 0b1111_1110) << 4) as usize
+          }
+        };
+        let mut bottom_tile = if (self.scanline_n as usize) - (oam.y as usize) >= 8 {true} else {false};
+        if !mode_16 && ctrl & 0b0000_1000 != 0 {
+          addr += 0x1000;
+        }
+        else if mode_16 && oam.tile & 1 == 1{
           addr += 0x1000;
         }
         if oam.attr & 0b1000_0000 != 0 {
-          addr += 7 - ((self.scanline_n as usize) - (oam.y as usize));
+          addr += 7 - (((self.scanline_n as usize) - (oam.y as usize)) % 8);
+          if mode_16 {
+            bottom_tile = !bottom_tile;
+          }
         }
         else {
-          addr += (self.scanline_n as usize) - (oam.y as usize);
+          addr += ((self.scanline_n as usize) - (oam.y as usize)) % 8;
+        }
+        if bottom_tile {
+          addr += 16;
         }
         if oam.attr & 0b0100_0000 != 0 {
           self.reg.shift_sprite_low[i] = bus.ppu_read(addr.into());
@@ -432,7 +454,7 @@ impl PPU {
   //+++----------------- fine Y scroll
 
   fn hori_inc(&mut self, bus: &mut Bus) {
-    if (bus.ppu_mem.v & 0x001F) == 31 {
+    if bus.ppu_mem.v & 0x001F == 31 {
       bus.ppu_mem.v &= !0x001F;
       bus.ppu_mem.v ^= 0x0400;
     }

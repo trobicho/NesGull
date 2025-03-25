@@ -6,6 +6,7 @@ use crate::nes::{
 };
 
 #[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 pub enum ConsoleType {
   NES,
@@ -14,7 +15,7 @@ pub enum ConsoleType {
   Extended(u8),
 }
 
-#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 pub enum TimingType {
   NTSC_NES,
@@ -50,27 +51,27 @@ pub struct NesHeader {
 
 impl fmt::Display for NesHeader {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    writeln!(f, "PRG-ROM size: {:#06x}", self.prg_rom_size);
-    writeln!(f, "CHR-ROM size: {:#06x}", self.chr_rom_size);
+    writeln!(f, "PRG-ROM size: {:#06x}", self.prg_rom_size).unwrap();
+    writeln!(f, "CHR-ROM size: {:#06x}", self.chr_rom_size).unwrap();
 
-    writeln!(f, "Mirroring_type: {}", self.mirroring_type);
-    writeln!(f, "Battery: {}", self.battery);
-    writeln!(f, "Trainer: {}", self.trainer);
-    writeln!(f, "Mapper num: {}", self.mapper_num);
+    writeln!(f, "Mirroring_type: {}", self.mirroring_type).unwrap();
+    writeln!(f, "Battery: {}", self.battery).unwrap();
+    writeln!(f, "Trainer: {}", self.trainer).unwrap();
+    writeln!(f, "Mapper num: {}", self.mapper_num).unwrap();
 
-    writeln!(f, "Console type: {:?}", self.console_type);
-    writeln!(f, "Nes2: {}", self.nes2);
+    writeln!(f, "Console type: {:?}", self.console_type).unwrap();
+    writeln!(f, "Nes2: {}", self.nes2).unwrap();
 
-    writeln!(f, "Submapper num: {}", self.submapper_num);
+    writeln!(f, "Submapper num: {}", self.submapper_num).unwrap();
 
-    writeln!(f, "EEPROM size: {:#06x}", self.eeprom_size);
-    writeln!(f, "PRG-RAM size: {:#06x}", self.prg_ram_size);
-    writeln!(f, "CHR-RAM size: {:#06x}", self.chr_ram_size);
-    writeln!(f, "CHR-NVRRAM size: {:#06x}", self.chr_nvram_size);
+    writeln!(f, "EEPROM size: {:#06x}", self.eeprom_size).unwrap();
+    writeln!(f, "PRG-RAM size: {:#06x}", self.prg_ram_size).unwrap();
+    writeln!(f, "CHR-RAM size: {:#06x}", self.chr_ram_size).unwrap();
+    writeln!(f, "CHR-NVRRAM size: {:#06x}", self.chr_nvram_size).unwrap();
 
-    writeln!(f, "Timing type: {:?}", self.timing_type);
-    writeln!(f, "Misc. roms: {}", self.misc_roms);
-    writeln!(f, "Expension device: {}", self.default_exp_device);
+    writeln!(f, "Timing type: {:?}", self.timing_type).unwrap();
+    writeln!(f, "Misc. roms: {}", self.misc_roms).unwrap();
+    writeln!(f, "Expension device: {}", self.default_exp_device).unwrap();
     Ok(())
   }
 }
@@ -78,8 +79,26 @@ impl fmt::Display for NesHeader {
 impl NesHeader {
   pub fn new(header: &[u8]) -> Self {
     Self {
-      prg_rom_size: (header[4] as usize) * 16 * 1024,
-      chr_rom_size: (header[5] as usize) * 8 * 1024,
+      prg_rom_size: {
+        if (header[9] & 0b00001111) == 0xF {
+          (2 << (((header[4] & 0b1111_1100) as usize) >> 2)) * ((header[4] & 0b0000_0011) * 2 + 1) as usize
+        }
+        else {
+          ((((header[9] & 0b00001111) as usize) << 8) | (header[4] as usize)) << (4 + 10)
+        }
+      },
+      chr_rom_size: {
+        if ((header[9] & 0b11110000) >> 4) == 0xF {
+          (2 << (((header[5] & 0b1111_1100) as usize) >> 2)) * ((header[5] & 0b0000_0011) * 2 + 1) as usize
+        }
+        else {
+          ((((header[9] & 0b11110000) as usize) << 4) | (header[5] as usize)) << (3 + 10)
+        }
+      },
+          
+
+      //prg_rom_size: (header[4] as usize) * 16 * 1024,
+      //chr_rom_size: (header[5] as usize) * 8 * 1024,
       mirroring_type: {
         let mut m_type = MirroringType::Horizontal;
         if header[6] & 0b0000_0001 != 0 {
@@ -106,14 +125,14 @@ impl NesHeader {
           _ => ConsoleType::NES,
         }
       },
-      nes2: if header[7] & 0b0000_1100 == 2 {true} else {false},
+      nes2: if header[7] & 0b0000_1100 == 8 {true} else {false},
       submapper_num: (header[8] & 0b1111_0000) >> 4,
       eeprom_size: if header[10] & 0b0000_1111 == 0 {0} else {64 << ((header[10] & 0b0000_1111) as usize)},
       prg_ram_size: if header[10] & 0b1111_0000 == 0 {0} else {64 << (((header[10] & 0b1111_0000) >> 4) as usize)},
       chr_ram_size: if header[11] & 0b0000_1111 == 0 {0} else {64 << ((header[11] & 0b0000_1111) as usize)},
       chr_nvram_size: if header[11] & 0b1111_0000 == 0 {0} else {64 << (((header[11] & 0b1111_0000) >> 4) as usize)},
       timing_type: {
-        match header[7] & 0b0000_0011 {
+        match header[12] & 0b0000_0011 {
           0 => TimingType::NTSC_NES,
           1 => TimingType::PAL_NES,
           2 => TimingType::MUL_REG,

@@ -1,6 +1,8 @@
 mod cpu;
 pub mod ppu;
+pub mod apu;
 mod memory;
+pub mod save_state;
 mod bus;
 mod mapper;
 pub mod cartridge;
@@ -10,13 +12,17 @@ mod clock;
 use std::error::Error;
 
 use bus::Bus;
+use save_state::SaveState;
 use cpu::CPU;
 use ppu::{PPU, PPUInfo};
+use apu::{APU};
+use apu::mixer::Mixer;
 use cartridge::Cartridge;
 use clock::{Clock, SlaveClock};
 use controller::Controller;
-use mapper::{Mapper, MapperType};
+use mapper::{Mapper};
 
+#[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub enum DebugEvent {
   SHOW_PPU_REG,
@@ -24,8 +30,9 @@ pub enum DebugEvent {
   SHOW_PPU_VRAM,
   SHOW_PPU_PALETTE,
   SHOW_CPU_WRAM,
-  SHOW_CPU_MAP_REG,
+  SHOW_APU_REG,
   SHOW_MAPPER,
+  MUTE_GAME,
 }
 
 pub struct DebugFlag {
@@ -35,32 +42,39 @@ pub struct DebugFlag {
 pub struct Nes {
   cpu: CPU,
   ppu: PPU,
+  apu: APU,
   bus: Bus,
   cpu_clock: SlaveClock,
   ppu_clock: SlaveClock,
+  apu_clock: SlaveClock,
   cartridge: Cartridge,
 
   cpu_nmi: bool,
   debug_no_nmi: bool,
   breakpoint: bool,
+  mute: bool,
 }
 
 impl Nes {
-  pub fn new(cartridge: Cartridge, controller: Box<dyn Controller>) -> Result<Self, Box<dyn Error>> {
+  pub fn new(cartridge: Cartridge, controller: Box<dyn Controller>, mixer: Mixer) -> Result<Self, Box<dyn Error>> {
     let mut new = Self {
       cpu: CPU::new(),
       ppu: PPU::new(),
-      bus: Bus::new(controller),
+      apu: APU::new(),
+      bus: Bus::new(controller, mixer),
       cpu_clock: SlaveClock::new(3),
       ppu_clock: SlaveClock::new(1),
+      apu_clock: SlaveClock::new(6),
       cartridge,
 
       cpu_nmi: false,
       debug_no_nmi: false,
       breakpoint: false,
+      mute: false,
     };
     let mapper = mapper::load_rom(&new.cartridge)?;
     new.bus.load_mapper(mapper);
+    new.bus.mixer.set_mute(new.mute);
     Ok(new)
   }
 
@@ -103,6 +117,9 @@ impl Nes {
           //self.bus.print_ppu_reg();
         }
       }
+    }
+    if self.apu_clock.tick() {
+      self.apu.tick(&mut self.bus);
     }
     b
   }
@@ -161,13 +178,29 @@ impl Nes {
   pub fn debug_event(&mut self, event: DebugEvent) {
     match event {
       DebugEvent::SHOW_CPU_WRAM => {println!("{}", self.bus.wram);},
-      DebugEvent::SHOW_CPU_MAP_REG=> {println!("{}", self.bus.cpu_mapped_reg);},
+      DebugEvent::SHOW_APU_REG => {println!("{}", self.bus.apu_mem);},
       DebugEvent::SHOW_PPU_REG => {self.bus.print_ppu_mem();},
-      DebugEvent::SHOW_PPU_VRAM => {;},
-      DebugEvent::SHOW_PPU_OAM=> {;},
+      DebugEvent::SHOW_PPU_VRAM => {},
+      DebugEvent::SHOW_PPU_OAM=> {},
       DebugEvent::SHOW_PPU_PALETTE => {self.bus.ppu_mem.print_palette();},
+      DebugEvent::MUTE_GAME => {
+        self.mute = !self.mute;
+        self.bus.mixer.set_mute(self.mute);
+        println!("Game mute {}", self.mute);
+      },
       //DebugEvent::SHOW_MAPPER => {println!("{}", self.bus.mapper);},
       _ => (),
     }
+  }
+
+  pub fn debug_save_state(&self) -> SaveState {
+    let mut state = self.bus.save_state();
+    state.cpu_reg = self.cpu.save_reg_state();
+    state
+  }
+
+  pub fn debug_load_state(&mut self, state: &SaveState) {
+    self.bus.load_state(state);
+    self.cpu.load_reg_state(&state.cpu_reg);
   }
 }

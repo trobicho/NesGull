@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::Cartridge;
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory, BankableMemory},
+  memory::{MemRead, MemWrite, BankableMemory},
   mapper::{Mapper, MapperType, MirroringType},
 };
 
@@ -33,7 +33,7 @@ impl Uxrom {
         Some(chr_rom) => {
           BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (BankableMemory::ram(CHR_SIZE, CHR_WINDOW))
+        None => BankableMemory::ram(CHR_SIZE, CHR_WINDOW)
       }},
       mirroring: cartridge.header.mirroring_type,
     };
@@ -52,7 +52,6 @@ impl Mapper for Uxrom {
   }
 
   fn mirroring(&self) -> MirroringType {
-    println!("{}", self.mirroring);
     self.mirroring
   }
   fn irq_pending(&mut self) -> bool {

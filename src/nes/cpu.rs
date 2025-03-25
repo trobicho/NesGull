@@ -8,8 +8,8 @@ use crate::nes::{
 };
 
 
-#[derive(Debug)]
-struct StatusReg {
+#[derive(Debug, Copy, Clone)]
+pub struct StatusReg {
   //7654 3210
   //NVss DIZC
 
@@ -104,8 +104,8 @@ impl StatusReg {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug)]
-struct Reg {
+#[derive(Debug, Copy, Clone)]
+pub struct Reg {
   A: u8,
   X: u8,
   Y: u8,
@@ -115,7 +115,7 @@ struct Reg {
 }
 
 impl Reg {
-  fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       A: 0x0,
       X: 0x0,
@@ -181,7 +181,7 @@ pub struct CPU {
   pub debug: bool,
 }
 
-impl Clock for CPU {
+impl Clock<bool> for CPU {
   fn tick(&mut self, bus: &mut Bus) -> bool{
     self.cycles_since_last_exec += 1;
     self.cycles_frame += 1;
@@ -189,13 +189,13 @@ impl Clock for CPU {
       //print!("-");
     //}
     if self.cycles_since_last_exec >= self.cycles_instr {
-      if (bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0) {
+      if bus.ppu_mem.get_nmi_output() && bus.ppu_mem.read_status() & 0b1000_0000 != 0 {
         bus.ppu_mem.nmi();
         self.cycles_instr += 2;
         self.NMI(bus);
       }
       else if bus.get_oam_dma_state() {
-        if self.cycles_frame % 1 == 0 {
+        if self.cycles_frame % 2 == 0 {
           bus.oam_dma_tick();
           self.cycles_since_last_exec = 0;
           self.cycles_instr = 2;
@@ -234,6 +234,14 @@ impl CPU {
       instr_op_load: false,
       debug: false,
     }
+  }
+
+  pub(super) fn load_reg_state(&mut self, reg: &Reg) {
+    self.reg = *reg;
+  }
+
+  pub(super) fn save_reg_state(&self) -> Reg {
+    self.reg
   }
 
   pub fn reset_cycles_frame(&mut self) {
@@ -389,17 +397,17 @@ impl CPU {
       Instruction::CLV => {self.CLV(bus)},
       Instruction::NOP => (),
       //Illegal commands:
-      Instruction::SLO => (self.SLO(bus)),
-      Instruction::RLA => (self.RLA(bus)),
-      Instruction::SRE => (self.SRE(bus)),
-      Instruction::RRA => (self.RRA(bus)),
-      Instruction::SAX => (self.SAX(bus)),
-      Instruction::LAX => (self.LAX(bus)),
-      Instruction::DCP => (self.DCP(bus)),
-      Instruction::ISC => (self.ISC(bus)),
-      Instruction::ANC => (self.ANC(bus)),
-      Instruction::ALR => (self.ALR(bus)),
-      Instruction::ARR => (self.ARR(bus)),
+      Instruction::SLO => self.SLO(bus),
+      Instruction::RLA => self.RLA(bus),
+      Instruction::SRE => self.SRE(bus),
+      Instruction::RRA => self.RRA(bus),
+      Instruction::SAX => self.SAX(bus),
+      Instruction::LAX => self.LAX(bus),
+      Instruction::DCP => self.DCP(bus),
+      Instruction::ISC => self.ISC(bus),
+      Instruction::ANC => self.ANC(bus),
+      Instruction::ALR => self.ALR(bus),
+      Instruction::ARR => self.ARR(bus),
       _ => {println!("not implemented yet: {}", self.instr.instr)}
     }
   }
@@ -858,6 +866,7 @@ impl CPU {
     self.reg.S = self.reg.S.wrapping_sub(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
+
     self.reg.S = self.reg.S.wrapping_sub(1);
     self.reg.PC = self.addr_abs;
     self.as_jump = true;

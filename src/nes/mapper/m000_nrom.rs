@@ -33,7 +33,7 @@ impl Nrom {
           println!();
           Memory::rom_from_bytes(&chr_rom)
         },
-        None => (Memory::new())
+        None => Memory::new()
       }},
       mirroring: cartridge.header.mirroring_type,
     };
@@ -49,7 +49,6 @@ impl Mapper for Nrom {
   }
 
   fn mirroring(&self) -> MirroringType {
-    println!("{}", self.mirroring);
     self.mirroring
   }
   fn irq_pending(&mut self) -> bool {
