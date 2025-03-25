@@ -195,7 +195,7 @@ fn main() -> Result<(), Box<dyn Error>>{
       time = Instant::now();
       nes.tick_frame();
       frame_nb += 1;
-      println!("frame: {}", frame_nb);
+      //println!("frame: {}", frame_nb);
     }
     canvas.set_draw_color(sdl2::pixels::Color::RGBA(200, 150, 0, 255));
     canvas.clear();

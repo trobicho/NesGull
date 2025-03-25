@@ -154,9 +154,11 @@ impl PPUMemory {
       MirroringType::Vertical => {addr %= 0x800;},
       MirroringType::Horizontal => {
         if (addr >= 0x400 && addr < 0x800) || addr >= 0xC00 {addr -= 0x400;}
+        /*
         if (addr > 0x800) {
           addr -= 0x400;
         }
+        */
       }
       MirroringType::FourScreen => (),
       MirroringType::SingleScreenA => {addr %= 0x400;},
@@ -228,7 +230,7 @@ impl PPUMemory {
         self.w = !self.w;
       },
       PPUADDR_CPU_ADDR => {
-        if self.w == false{
+        if self.w == false {
           self.t = (self.t & 0b0000_0000_1111_1111) | ((value & 0b0111_1111) as u16).wrapping_shl(8);
         }
         else {
@@ -301,4 +303,3 @@ impl PPUMemory {
     }
   }
 }
-

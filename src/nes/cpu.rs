@@ -195,7 +195,7 @@ impl Clock<bool> for CPU {
         self.NMI(bus);
       }
       else if bus.get_oam_dma_state() {
-        if self.cycles_frame % 1 == 0 {
+        if self.cycles_frame % 2 == 0 {
           bus.oam_dma_tick();
           self.cycles_since_last_exec = 0;
           self.cycles_instr = 2;
@@ -866,6 +866,7 @@ impl CPU {
     self.reg.S = self.reg.S.wrapping_sub(1);
     let stack_addr = STACK_ADDR + self.reg.S as u16;
     bus.write(stack_addr.into(), lsb.wrapping_sub(1));
+
     self.reg.S = self.reg.S.wrapping_sub(1);
     self.reg.PC = self.addr_abs;
     self.as_jump = true;
