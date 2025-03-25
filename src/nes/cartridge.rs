@@ -84,7 +84,7 @@ impl NesHeader {
           (2 << (((header[4] & 0b1111_1100) as usize) >> 2)) * ((header[4] & 0b0000_0011) * 2 + 1) as usize
         }
         else {
-          (((header[9] & 0b00001111) as usize) << 8) | (header[4] as usize)
+          ((((header[9] & 0b00001111) as usize) << 8) | (header[4] as usize)) << (4 + 10)
         }
       },
       chr_rom_size: {
@@ -92,7 +92,7 @@ impl NesHeader {
           (2 << (((header[5] & 0b1111_1100) as usize) >> 2)) * ((header[5] & 0b0000_0011) * 2 + 1) as usize
         }
         else {
-          (((header[9] & 0b11110000) as usize) << 4) | (header[5] as usize)
+          ((((header[9] & 0b11110000) as usize) << 4) | (header[5] as usize)) << (3 + 10)
         }
       },
           
