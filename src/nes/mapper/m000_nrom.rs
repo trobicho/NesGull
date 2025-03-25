@@ -33,7 +33,7 @@ impl Nrom {
           println!();
           Memory::rom_from_bytes(&chr_rom)
         },
-        None => (Memory::new())
+        None => Memory::new()
       }},
       mirroring: cartridge.header.mirroring_type,
     };

@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, StreamTrait};
 
 static mut stream_data: Vec<f32> = vec![];
 
@@ -51,7 +51,7 @@ impl Mixer {
     let sample_rate = self.config.sample_rate.0 as f32;
     let channels = self.config.channels as usize;
 
-    let mut sample_clock = 0f32;
+    let sample_clock = 0f32;
     let err_fn = |err| eprintln!("an error occurred on stream: {}", err);
 
     unsafe {

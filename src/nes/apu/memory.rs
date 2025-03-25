@@ -1,8 +1,6 @@
 use std::fmt;
 
-use crate::nes::{
-  memory::{Memory, MemRead, MemWrite},
-};
+use crate::nes::memory::{MemRead, MemWrite};
 
 #[derive(Debug)]
 pub struct APUMemory {

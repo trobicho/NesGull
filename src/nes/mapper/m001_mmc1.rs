@@ -47,7 +47,7 @@ impl MMC1 {
         Some(chr_rom) => {
           BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (BankableMemory::ram(CHR_SIZE, CHR_WINDOW))
+        None => BankableMemory::ram(CHR_SIZE, CHR_WINDOW)
       }},
       mirroring: cartridge.header.mirroring_type,
       shift_reg: 0b0001_0000,

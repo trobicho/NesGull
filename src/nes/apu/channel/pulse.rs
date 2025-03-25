@@ -1,10 +1,8 @@
 use std::fmt;
 
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory},
   apu::channel::{Channel, ChannelType},
   bus::Bus,
-  clock::Clock,
 };
 
 /*

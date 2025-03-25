@@ -411,14 +411,14 @@ impl PPU {
         }
         if oam.attr & 0b1000_0000 != 0 {
           addr += 7 - (((self.scanline_n as usize) - (oam.y as usize)) % 8);
-          if (mode_16) {
+          if mode_16 {
             bottom_tile = !bottom_tile;
           }
         }
         else {
           addr += ((self.scanline_n as usize) - (oam.y as usize)) % 8;
         }
-        if (bottom_tile) {
+        if bottom_tile {
           addr += 16;
         }
         if oam.attr & 0b0100_0000 != 0 {

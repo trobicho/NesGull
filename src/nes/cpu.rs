@@ -397,17 +397,17 @@ impl CPU {
       Instruction::CLV => {self.CLV(bus)},
       Instruction::NOP => (),
       //Illegal commands:
-      Instruction::SLO => (self.SLO(bus)),
-      Instruction::RLA => (self.RLA(bus)),
-      Instruction::SRE => (self.SRE(bus)),
-      Instruction::RRA => (self.RRA(bus)),
-      Instruction::SAX => (self.SAX(bus)),
-      Instruction::LAX => (self.LAX(bus)),
-      Instruction::DCP => (self.DCP(bus)),
-      Instruction::ISC => (self.ISC(bus)),
-      Instruction::ANC => (self.ANC(bus)),
-      Instruction::ALR => (self.ALR(bus)),
-      Instruction::ARR => (self.ARR(bus)),
+      Instruction::SLO => self.SLO(bus),
+      Instruction::RLA => self.RLA(bus),
+      Instruction::SRE => self.SRE(bus),
+      Instruction::RRA => self.RRA(bus),
+      Instruction::SAX => self.SAX(bus),
+      Instruction::LAX => self.LAX(bus),
+      Instruction::DCP => self.DCP(bus),
+      Instruction::ISC => self.ISC(bus),
+      Instruction::ANC => self.ANC(bus),
+      Instruction::ALR => self.ALR(bus),
+      Instruction::ARR => self.ARR(bus),
       _ => {println!("not implemented yet: {}", self.instr.instr)}
     }
   }

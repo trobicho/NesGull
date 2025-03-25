@@ -1,10 +1,9 @@
-use std::fs;
 use std::error::Error;
 
 use crate::nes::{
   memory::{Memory},
   cpu,
-  mapper::{self, Mapper, MapperType},
+  mapper::{self, MapperType},
   ppu::memory::{PPUMemory},
 };
 

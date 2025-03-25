@@ -1,10 +1,8 @@
 use std::fmt;
 
 use crate::nes::{
-  memory::{MemRead, MemWrite, Memory},
   apu::channel::{Channel, ChannelType},
   bus::Bus,
-  clock::Clock,
 };
 
 const SEQUENCE_LOOKUP_TABLE: [u8; 32] = [
@@ -59,7 +57,7 @@ impl Channel for Triangle {
 
 impl Triangle {
   pub fn new(addr_first_reg: usize) -> ChannelType {
-    let mut new = Self {
+    let new = Self {
       addr_first_reg,
       reg: Register::new(),
     };
@@ -76,7 +74,7 @@ impl Triangle {
     else {
       self.reg.timer -= 1;
     }
-    let mut seq = SEQUENCE_LOOKUP_TABLE[self.reg.timer as usize % 32];
+    let seq = SEQUENCE_LOOKUP_TABLE[self.reg.timer as usize % 32];
     seq
   }
 }

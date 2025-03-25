@@ -20,7 +20,7 @@ use sdl2::render::{TextureCreator};
 use sdl2::rect::Rect;
 use sdl2::controller::GameController;
 use sdl2::GameControllerSubsystem;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, HostTrait};
 
 const micros_per_frame : u128 = (1_000_000.0 / 60.0988) as u128; 
 
@@ -41,7 +41,7 @@ fn find_controller(game_controller_subsystem: &GameControllerSubsystem) -> Resul
   println!("{} joysticks available", available);
 
   // Iterate over all available joysticks and look for game controllers.
-  let mut controller = (0..available)
+  let controller = (0..available)
     .find_map(|id| {
       if !game_controller_subsystem.is_game_controller(id) {
         println!("{} is not a game controller", id);
@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>>{
 
   let mut event_pump = sdl_context.event_pump()?;
   let game_controller_subsystem = sdl_context.game_controller()?;
-  let mut controller = NesController::new(find_controller(&game_controller_subsystem)?, 0);
+  let controller = NesController::new(find_controller(&game_controller_subsystem)?, 0);
 
   let args: Vec<String> = env::args().collect();
   println!("{:?}", args);
@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn Error>>{
   let mut cpu_debug = false;
   let mut frame_nb = 0;
   let mut time = Instant::now();
-  let mut last_time = time;
+  let last_time = time;
   let mut save_state: Option<SaveState> = None;
 
   while running {

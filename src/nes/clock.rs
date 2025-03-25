@@ -1,9 +1,5 @@
-use enum_dispatch::enum_dispatch;
 
-use crate::nes::{
-  bus::Bus,
-  apu::channel::ChannelType
-};
+use crate::nes::bus::Bus;
 
 pub trait Clock<T> {
   fn tick(&mut self, _bus: &mut Bus) -> T;

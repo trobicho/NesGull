@@ -1,14 +1,9 @@
 pub mod pulse;
 pub mod triangle;
 
-use std::fmt;
 use enum_dispatch::enum_dispatch;
 
-use crate::nes::{
-  memory::{Memory},
-  bus::Bus,
-  clock::Clock,
-};
+use crate::nes::bus::Bus;
 
 use pulse::Pulse;
 use triangle::Triangle;

@@ -5,7 +5,6 @@ pub mod mixer;
 const SAMPLE_STEP: f32 = 40.58 / 2.0;
 
 use crate::nes::{
-  memory::{Memory},
   bus::Bus,
   clock::Clock,
 };
@@ -41,7 +40,7 @@ impl APU {
   pub fn mixer(&mut self, bus: &mut Bus) -> (bool, f32) {
     bus.apu_mem.tick();
     let mut r: f32 = 0f32;
-    let mut has_sound: bool = false;
+    let has_sound: bool = false;
     let mut status = bus.apu_mem.status;
 
     for channel in &mut self.channels {

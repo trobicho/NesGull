@@ -33,7 +33,7 @@ impl Uxrom {
         Some(chr_rom) => {
           BankableMemory::ram_from_bytes(&chr_rom, CHR_WINDOW)
         },
-        None => (BankableMemory::ram(CHR_SIZE, CHR_WINDOW))
+        None => BankableMemory::ram(CHR_SIZE, CHR_WINDOW)
       }},
       mirroring: cartridge.header.mirroring_type,
     };
